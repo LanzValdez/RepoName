@@ -79,7 +79,7 @@ jobs:
           curl -X POST "https://xiztysz760.execute-api.ap-southeast-1.amazonaws.com/dev/test-runs" \
           -H "Content-Type: application/json" \
           -d "$(jq -n \
-            --arg pr_number "${{ github.repository }}-${{ github.event.pull_request.number }}" \
+            --arg pr_number "${{ github.event.pull_request.base.repo.name }}-${{ github.event.pull_request.number }}" \
             --arg automation_status "$STATUS" \
             '{pr_number: $pr_number, automation_status: $automation_status}')"
 
