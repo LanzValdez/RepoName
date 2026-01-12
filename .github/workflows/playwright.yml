@@ -43,7 +43,7 @@ jobs:
         run: |
           curl -X POST "https://xiztysz760.execute-api.ap-southeast-1.amazonaws.com/dev/test-runs" \
           -H "Content-Type: application/json" \
-          -d "{\"pr_number\": ${{ github.event.pull_request.number }}, \
+          -d "{\"pr_number\": \"${{ github.repository }}-${{ github.event.pull_request.number }}\", \
                \"run_id\": \"${{ github.run_id }}\", \
                \"pr_title\": \"${{ github.event.pull_request.title }}\", \
                \"requested_by\": \"${{ github.event.pull_request.user.login }}\", \
@@ -76,7 +76,7 @@ jobs:
 
           curl -X POST "https://xiztysz760.execute-api.ap-southeast-1.amazonaws.com/dev/test-runs" \
           -H "Content-Type: application/json" \
-          -d "{\"pr_number\": ${{ github.event.pull_request.number }}, \
+          -d "{\"pr_number\": \"${{ github.repository }}-${{ github.event.pull_request.number }}\", \
                \"run_id\": \"${{ github.run_id }}\", \
                \"status\": \"$STATUS\", \
                \"completed_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
