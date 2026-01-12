@@ -20,9 +20,15 @@ jobs:
           # Determine PR status
           if [ "${{ github.event.pull_request.merged }}" == "true" ]; then
             PR_STATUS="merged"
-          else
+            COMPLETED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          elif [ "${{ github.event.pull_request.merged }}" == "false" ]; then
             PR_STATUS="rejected"
+            COMPLETED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          else
+            echo "PR not merged/rejected yet — skipping API call"
+            exit 0
           fi
+
 
           COMPLETED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
