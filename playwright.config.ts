@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: 'tests',
   use: {
     baseURL: 'http://localhost:5173', 
-    headless: false,                  
+    headless: true,                  
     screenshot: 'only-on-failure',
     video: 'off',
   },
@@ -15,3 +15,4 @@ export default defineConfig({
     reuseExistingServer: true,
   },
 });
+
