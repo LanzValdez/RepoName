@@ -1,6 +1,5 @@
 name: Playwright E2E Tests
 
-# Trigger the workflow on pull requests to main
 on:
   pull_request:
     branches:
@@ -11,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout the code for the PR as it would be after merging
+      # 1️⃣ Checkout merged commit
       - name: Checkout merged commit
         uses: actions/checkout@v3
         with:
@@ -23,7 +22,7 @@ jobs:
         with:
           node-version: 20
 
-      # 3️⃣ Login to AWS CodeArtifact (only if using private packages)
+      # 3️⃣ Login to AWS CodeArtifact
       - name: Login to AWS CodeArtifact
         run: |
           aws codeartifact login \
@@ -38,21 +37,19 @@ jobs:
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
           AWS_DEFAULT_REGION: ap-southeast-1
 
-      # 4️⃣ Report pending test run to API
+      # 4️⃣ Report pending test run
       - name: Report pending test run
         run: |
           curl -X POST "https://xiztysz760.execute-api.ap-southeast-1.amazonaws.com/dev/test-runs" \
           -H "Content-Type: application/json" \
           -d "$(jq -n \
               --arg pr_number "${{ github.event.repository.name }}-${{ github.event.pull_request.number }}" \
-              --arg run_id "${{ github.run_id }}" \
               --arg pr_title "${{ github.event.pull_request.title }}" \
               --arg requested_by "${{ github.event.pull_request.user.login }}" \
               --arg status "pending" \
               --arg started_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
               --arg pr_url "${{ github.event.pull_request.html_url }}" \
-              '{pr_number: $pr_number, run_id: $run_id, pr_title: $pr_title, requested_by: $requested_by, status: $status, started_at: $started_at, pr_url: $pr_url}')"
-
+              '{pr_number: $pr_number, pr_title: $pr_title, requested_by: $requested_by, status: $status, started_at: $started_at, pr_url: $pr_url}')"
 
       # 5️⃣ Install dependencies
       - name: Install dependencies
@@ -67,24 +64,25 @@ jobs:
         id: playwright
         run: |
           npx playwright test --reporter=list
-        continue-on-error: true   # Workflow continues even if tests fail
+        continue-on-error: true
 
-      # 8️⃣ Report test result to API
+      # 8️⃣ Report test result
       - name: Report test result
         run: |
           STATUS="passed"
-          if [ ${{ steps.playwright.outcome }} != "success" ]; then
+          if [ "${{ steps.playwright.outcome }}" != "success" ]; then
             STATUS="failed"
           fi
 
           curl -X POST "https://xiztysz760.execute-api.ap-southeast-1.amazonaws.com/dev/test-runs" \
           -H "Content-Type: application/json" \
-          -d "{\"pr_number\": \"${{ github.repository }}-${{ github.event.pull_request.number }}\", \
-               \"run_id\": \"${{ github.run_id }}\", \
-               \"status\": \"$STATUS\", \
-               \"completed_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+          -d "$(jq -n \
+              --arg pr_number "${{ github.event.repository.name }}-${{ github.event.pull_request.number }}" \
+              --arg status "$STATUS" \
+              --arg completed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              '{pr_number: $pr_number, status: $status, completed_at: $completed_at}')"
 
-      # 9️⃣ Upload artifacts (screenshots/videos) for failed tests
+      # 9️⃣ Upload artifacts
       - name: Upload Playwright artifacts
         uses: actions/upload-artifact@v4
         with:
