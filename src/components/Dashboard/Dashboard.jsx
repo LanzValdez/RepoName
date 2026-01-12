@@ -1746,7 +1746,7 @@ const Dashboard = () => {
                 <div className="mt-6 flex gap-4 flex-wrap">
                     <div className="mt-[5px] flex gap-2 flex-col">
                         <span className="font-medium text-[#111827] text-base leading-none tracking-normal">
-                            Date Range <span className="text-[#ef4444]">*</span>
+                            Date Ranges <span className="text-[#ef4444]">*</span>
                         </span>
                         <DateRangePicker
                             startDate={startDate}
