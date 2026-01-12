@@ -71,9 +71,9 @@ jobs:
       # 8️⃣ Report automation result
       - name: Report automation result
         run: |
-          STATUS="passed"
+          STATUS="Passed"
           if [ "${{ steps.playwright.outcome }}" != "success" ]; then
-            STATUS="failed"
+            STATUS="Failed"
           fi
 
           curl -X POST "https://xiztysz760.execute-api.ap-southeast-1.amazonaws.com/dev/test-runs" \
