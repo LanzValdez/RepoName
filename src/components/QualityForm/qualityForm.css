@@ -1,0 +1,48 @@
+.fade-in {
+    opacity: 0;
+    transition: opacity 260ms ease-out;
+}
+
+.fade-in.show {
+    opacity: 1;
+}
+
+.panel-in {
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 320ms ease-out, transform 320ms ease-out;
+}
+
+.panel-in.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Card entrance */
+@keyframes riseIn {
+    0% {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Lighter glow + lift on hover (subtle and crisp) */
+.card-hover {
+    transition: transform 160ms ease, box-shadow 180ms ease, border-color 180ms ease;
+    will-change: transform, box-shadow;
+}
+
+.card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        0 2px 8px rgba(78, 78, 78, 0),
+        /* soft depth */
+        0 0 0 4px rgba(59, 59, 59, 0.1);
+    /* thin glow ring */
+    border-color: rgba(255, 255, 255, 0.25);
+}

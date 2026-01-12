@@ -1,0 +1,242 @@
+:root {
+    --green: #4AB58E;
+    --amber: #F8B603;
+    --red: #EE4B4A;
+    --blue: #3B82F6;
+    --col-left: 35%;
+    --col-center: 40%;
+    --col-right: 25%;
+    --min-left: 280px;
+    --min-center: 340px;
+    --min-right: 280px;
+    --bg: #F6F7FB;
+    --card: #fff;
+    --text: #0F172A;
+    --muted: #6B7280;
+    --radius: 16px;
+    --shadow: 0 1px 3px rgba(16, 24, 40, .1), 0 1px 2px rgba(16, 24, 40, .06);
+}
+
+.dashboard-layout {
+    /* padding: 8px; */
+    margin: 16px;
+    display: grid;
+    gap: 24px;
+    margin-left: 0px !important;
+    /* gap between top grid and bottom row */
+    /* background: var(--bg); */
+}
+
+/* Top grid: 35% / 65% */
+.layout-grid-2col {
+    display: grid;
+    grid-template-columns: 40% 60%;
+    gap: 16px;
+    align-items: start;
+}
+
+.layout-left,
+.layout-center,
+.layout-bottom {
+    min-width: 0;
+}
+
+/* Center stacks its two charts */
+.layout-center {
+    display: grid;
+    gap: 20px;
+}
+
+/* Bottom row (Top Markdowns) fills the whole width */
+.layout-bottom {
+    width: 100%;
+}
+
+/* Card skeleton helpers (optional, if you use .panel) */
+.panel {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+}
+
+.panel__title {
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 6px;
+    font-family: 'Work Sans', sans-serif;
+}
+
+.panel__subtitle {
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+
+.chart-box {
+    width: 100%;
+    height: 260px;
+}
+
+/* Responsive */
+@media (max-width: 960px) {
+    .layout-grid-2col {
+        grid-template-columns: 1fr;
+    }
+}
+
+.graph--call-escalation .panel__title {
+    margin-bottom: 12px;
+}
+
+.graph--call-escalation .escalation__head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: #F3F4F6;
+    /* soft gray pill */
+    color: #111827;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+/* list */
+.graph--call-escalation .escalation__list {
+    display: grid;
+    row-gap: 18px;
+}
+
+.graph--call-escalation .escalation__row {
+    display: grid;
+    grid-template-columns: 170px minmax(0, 1fr) auto;
+    /* name | bar | value */
+    align-items: center;
+    gap: 14px;
+}
+
+.graph--call-escalation .escalation__name {
+    color: #64748B;
+    /* slate-500 like */
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.graph--call-escalation .escalation__bar {
+    height: 10px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: #EEF2F7;
+    /* track color */
+    display: flex;
+}
+
+.graph--call-escalation .seg {
+    height: 100%;
+}
+
+.graph--call-escalation .seg--pos {
+    background: #4AB58E;
+}
+
+/* green */
+.graph--call-escalation .seg--neu {
+    background: #F8B603;
+}
+
+/* amber */
+.graph--call-escalation .seg--neg {
+    background: #EE4B4A;
+}
+
+/* red */
+
+.graph--call-escalation .escalation__value {
+    color: #111827;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* 4) Top Markdowns */
+.graph--top-markdowns {
+    display: grid;
+    gap: 16px;
+}
+
+.markdown-card {
+    border-radius: var(--radius);
+    padding: 16px;
+    font-family: 'Work Sans', sans-serif;
+    background: #fff;
+    box-shadow: var(--shadow);
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    /* cursor: pointer; */
+
+    /* make cards fill available width */
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    flex: 1 1 0%;
+}
+
+.markdown-card__title {
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--Greys-Blue-Grey-900, #151D48);
+    font-size: 17px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: 22.638px;
+    font-family: 'Work Sans', sans-serif;
+}
+
+.markdown-card__text {
+    color: #425166;
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 400 !important;
+    line-height: 12px;
+    font-family: 'Work Sans', sans-serif;
+}
+
+/* Card color variants */
+.markdown-card--people {
+    border: 0 solid #2388FF;
+    background: linear-gradient(128deg, #F1F5FF 60%, #CEDAF7 88%, #9BC9FF 88%, #2388FF 88%);
+}
+
+.markdown-card--processes {
+    border: 0 solid #F8B603;
+    background: linear-gradient(128deg, #FFF4D8 60%, #F3D993 88%, #F8B603 88%, #F8B603 88%);
+}
+
+.markdown-card--places {
+    border: 0 solid #4AB58E;
+    background: linear-gradient(128deg, #CFE6DE 60%, #9BF0D1 88%, #4AB58E 88%, #4AB58E 88%);
+}
+
+.markdown-card--policies {
+    border: 0 solid #FF7F50;
+    background: linear-gradient(128deg, #FFE4C4 60%, #FFE7DE 88%, #FFD3C3 88%, rgba(255, 127, 80, 0.60) 88%);
+}
+
+/* Optional fine-tuning to match the card look in the screenshot */
+.graph--communication-impact.panel {
+    border-radius: 24px;
+    padding: 20px 20px 8px;
+    box-shadow:
+        0 1px 2px rgba(16, 24, 40, 0.06),
+        0 8px 24px rgba(16, 24, 40, 0.06);
+}
+
+.graph--communication-impact .panel__subtitle {
+    color: #64748B;
+    /* slate-500 */
+    margin-bottom: 8px;
+}
