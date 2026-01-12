@@ -41,17 +41,15 @@ jobs:
       # 4️⃣ Report pending test run to API
       - name: Report pending test run
         run: |
-          curl -X POST https://xiztysz760.execute-api.ap-southeast-1.amazonaws.com/dev/test-runs \
+          curl -X POST "https://xiztysz760.execute-api.ap-southeast-1.amazonaws.com/dev/test-runs" \
           -H "Content-Type: application/json" \
-          -d '{
-            "pr_number": '${{ github.event.pull_request.number }}',
-            "run_id": "'${{ github.run_id }}'",
-            "pr_title": "'${{ github.event.pull_request.title }}'",
-            "requested_by": "'${{ github.event.pull_request.user.login }}'",
-            "status": "pending",
-            "started_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
-            "pr_url": "'${{ github.event.pull_request.html_url }}'"
-          }'
+          -d "{\"pr_number\": ${{ github.event.pull_request.number }}, \
+               \"run_id\": \"${{ github.run_id }}\", \
+               \"pr_title\": \"${{ github.event.pull_request.title }}\", \
+               \"requested_by\": \"${{ github.event.pull_request.user.login }}\", \
+               \"status\": \"pending\", \
+               \"started_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\", \
+               \"pr_url\": \"${{ github.event.pull_request.html_url }}\"}"
 
       # 5️⃣ Install dependencies
       - name: Install dependencies
@@ -66,7 +64,7 @@ jobs:
         id: playwright
         run: |
           npx playwright test --reporter=list
-        continue-on-error: true   # Make sure workflow continues to update test run even if tests fail
+        continue-on-error: true   # Workflow continues even if tests fail
 
       # 8️⃣ Report test result to API
       - name: Report test result
@@ -76,14 +74,12 @@ jobs:
             STATUS="failed"
           fi
 
-          curl -X POST https://xiztysz760.execute-api.ap-southeast-1.amazonaws.com/dev/test-runs \
+          curl -X POST "https://xiztysz760.execute-api.ap-southeast-1.amazonaws.com/dev/test-runs" \
           -H "Content-Type: application/json" \
-          -d '{
-            "pr_number": '${{ github.event.pull_request.number }}',
-            "run_id": "'${{ github.run_id }}'",
-            "status": "'$STATUS'",
-            "completed_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
-          }'
+          -d "{\"pr_number\": ${{ github.event.pull_request.number }}, \
+               \"run_id\": \"${{ github.run_id }}\", \
+               \"status\": \"$STATUS\", \
+               \"completed_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
 
       # 9️⃣ Upload artifacts (screenshots/videos) for failed tests
       - name: Upload Playwright artifacts
