@@ -48,8 +48,8 @@ jobs:
             --arg pr_title "${{ github.event.pull_request.title }}" \
             --arg requested_by "${{ github.event.pull_request.user.login }}" \
             --arg pr_url "${{ github.event.pull_request.html_url }}" \
-            --arg automation_status "pending" \
-            --arg pr_status "pending" \
+            --arg automation_status "Pending" \
+            --arg pr_status "Pending" \
             --arg started_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{pr_number: $pr_number, pr_title: $pr_title, requested_by: $requested_by, pr_url: $pr_url, automation_status: $automation_status, pr_status: $pr_status, started_at: $started_at}')"
 
