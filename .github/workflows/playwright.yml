@@ -38,19 +38,54 @@ jobs:
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
           AWS_DEFAULT_REGION: ap-southeast-1
 
-      # 4️⃣ Install dependencies
+      # 4️⃣ Report pending test run to API
+      - name: Report pending test run
+        run: |
+          curl -X POST https://xiztysz760.execute-api.ap-southeast-1.amazonaws.com/dev/test-runs \
+          -H "Content-Type: application/json" \
+          -d '{
+            "pr_number": '${{ github.event.pull_request.number }}',
+            "run_id": "'${{ github.run_id }}'",
+            "pr_title": "'${{ github.event.pull_request.title }}'",
+            "requested_by": "'${{ github.event.pull_request.user.login }}'",
+            "status": "pending",
+            "started_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
+            "pr_url": "'${{ github.event.pull_request.html_url }}'"
+          }'
+
+      # 5️⃣ Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # 5️⃣ Install Playwright browsers
+      # 6️⃣ Install Playwright browsers
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      # 6️⃣ Run Playwright tests
+      # 7️⃣ Run Playwright tests
       - name: Run Playwright tests
-        run: npx playwright test --reporter=list
+        id: playwright
+        run: |
+          npx playwright test --reporter=list
+        continue-on-error: true   # Make sure workflow continues to update test run even if tests fail
 
-      # 7️⃣ Upload artifacts (screenshots/videos) for failed tests
+      # 8️⃣ Report test result to API
+      - name: Report test result
+        run: |
+          STATUS="passed"
+          if [ ${{ steps.playwright.outcome }} != "success" ]; then
+            STATUS="failed"
+          fi
+
+          curl -X POST https://xiztysz760.execute-api.ap-southeast-1.amazonaws.com/dev/test-runs \
+          -H "Content-Type: application/json" \
+          -d '{
+            "pr_number": '${{ github.event.pull_request.number }}',
+            "run_id": "'${{ github.run_id }}'",
+            "status": "'$STATUS'",
+            "completed_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+          }'
+
+      # 9️⃣ Upload artifacts (screenshots/videos) for failed tests
       - name: Upload Playwright artifacts
         uses: actions/upload-artifact@v4
         with:
