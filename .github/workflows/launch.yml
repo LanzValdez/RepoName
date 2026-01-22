@@ -51,4 +51,4 @@ jobs:
       # 6️⃣ Run Playwright test
       - name: Run NinjaAI QA test
         run: |
-          npx playwright test tests/example.spec.ts --headed --project=chromium --reporter=list
+          npx playwright test tests/example.spec.ts --reporter=list
