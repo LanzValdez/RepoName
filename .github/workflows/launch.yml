@@ -1,1 +1,78 @@
 
+name: NinjaAI QA - E2E Tests
+
+on:
+  workflow_dispatch: # manual trigger from Lambda or GitHub UI
+
+jobs:
+  ninjaai-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout the main branch
+      - name: Checkout main branch
+        uses: actions/checkout@v3
+        with:
+          ref: main
+
+      # 2️⃣ Set up Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      # 3️⃣ Login to AWS CodeArtifact (only if using private packages)
+      - name: Login to AWS CodeArtifact
+        run: |
+          aws codeartifact login \
+            --tool npm \
+            --domain sni-react-components \
+            --domain-owner 345594593778 \
+            --repository sni-react-components-prod \
+            --region ap-southeast-1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_DEFAULT_REGION: ap-southeast-1
+
+      # 5️⃣ Install dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # 6️⃣ Install Playwright browsers
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      # 7️⃣ Launch NinjaAI QA browser
+      - name: Launch NinjaAI QA
+        run: |
+          node <<'EOF'
+          const { chromium } = require('playwright');
+          const path = require('path');
+
+          (async () => {
+            const browser = await chromium.launch({ headless: false });
+            const context = await browser.newContext();
+            const page = await context.newPage();
+
+            // Open the local NinjaAI QA page (replace with your main file)
+            const localFile = path.join(process.cwd(), 'index.html'); 
+            const fileUrl = `file://${localFile}`;
+            await page.goto(fileUrl);
+
+            console.log('Opened local NinjaAI QA:', fileUrl);
+
+            // Keep browser open briefly for demo
+            await new Promise(r => setTimeout(r, 5000));
+
+            await browser.close();
+          })();
+          EOF
+
+      # 9️⃣ Upload artifacts (screenshots/videos)
+      - name: Upload Playwright artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
