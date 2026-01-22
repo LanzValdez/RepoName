@@ -1,8 +1,12 @@
-
 name: NinjaAI QA - CT launch
 
 on:
   workflow_dispatch: # manual trigger from Lambda or GitHub UI
+    inputs:
+      path:
+        description: 'Test path to run'
+        required: false
+        default: 'default-path'
 
 jobs:
   ninjaai-tests:
@@ -36,36 +40,15 @@ jobs:
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
           AWS_DEFAULT_REGION: ap-southeast-1
 
-      # 5️⃣ Install dependencies
+      # 4️⃣ Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # 6️⃣ Install Playwright browsers
+      # 5️⃣ Install Playwright browsers
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      # 7️⃣ Launch NinjaAI QA browser
-      - name: Launch NinjaAI QA
+      # 6️⃣ Run Playwright test
+      - name: Run NinjaAI QA test
         run: |
-          node <<'EOF'
-          const { chromium } = require('playwright');
-          const path = require('path');
-
-          (async () => {
-            const browser = await chromium.launch({ headless: false });
-            const context = await browser.newContext();
-            const page = await context.newPage();
-
-            // Open the local NinjaAI QA page (replace with your main file)
-            const localFile = path.join(process.cwd(), 'index.html'); 
-            const fileUrl = `file://${localFile}`;
-            await page.goto(fileUrl);
-
-            console.log('Opened local NinjaAI QA:', fileUrl);
-
-            // Keep browser open briefly for demo
-            await new Promise(r => setTimeout(r, 5000));
-
-            await browser.close();
-          })();
-          EOF
+          npx playwright test tests/example.spec.ts --headed --project=chromium --reporter=list
