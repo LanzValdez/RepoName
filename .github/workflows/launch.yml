@@ -52,3 +52,20 @@ jobs:
       - name: Run NinjaAI QA test
         run: |
           npx playwright test tests/example.spec.ts --reporter=list
+
+      # 7️⃣ Publish SNS message with test result
+      - name: Publish SNS message
+        run: |
+          aws sns publish \
+            --topic-arn arn:aws:sns:ap-southeast-1:060795904668:ninjaaiverify-test-results \
+            --message '{
+              "status": "completed",
+              "testSummary": "Homepage test passed ✅",
+              "workflowRunId": "${{ github.run_id }}",
+              "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+            }' \
+            --region ap-southeast-1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
