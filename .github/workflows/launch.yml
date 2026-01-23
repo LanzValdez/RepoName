@@ -48,21 +48,22 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      # 6️⃣ Run Playwright test
+      # 6️⃣ Run Playwright tests and output JSON
       - name: Run NinjaAI QA test
-        run: |
-          npx playwright test tests/example.spec.ts --reporter=list
+        run: npx playwright test tests/example.spec.ts --reporter=json > result.json
 
       # 7️⃣ Publish SNS message with test result
       - name: Publish SNS message
         run: |
+          SUMMARY=$(jq -r '.suites[0].tests[0].status' result.json)
           aws sns publish \
             --topic-arn arn:aws:sns:ap-southeast-1:060795904668:ninjaaiverify-test-results \
             --message '{
               "status": "completed",
-              "testSummary": "Homepage test passed ✅",
+              "testSummary": "'"$SUMMARY"'",
               "workflowRunId": "${{ github.run_id }}",
-              "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+              "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
+              "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             }' \
             --region ap-southeast-1
         env:
