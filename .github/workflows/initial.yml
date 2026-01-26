@@ -73,9 +73,10 @@ jobs:
           
           # Run Playwright test without redirecting stdout
           npx playwright test tests/example.spec.ts \
-            --output test-results/screenshots/${RUN_ID}
+            --output test-results/screenshots/${RUN_ID} \
+            --timeout 60000
 
-      # 8️⃣ Upload screenshots as GitHub artifact (optional for debugging)
+      # 8️⃣ Upload screenshots as GitHub artifact (for debugging)
       - name: Upload screenshots as artifact
         uses: actions/upload-artifact@v4
         with:
@@ -86,11 +87,16 @@ jobs:
       - name: Send SUCCESS result
         if: success()
         run: |
+          RESULT_JSON="test-results/result.json"
+          PASSED=$(jq '.stats.expected // 0' $RESULT_JSON)
+          FAILED=$(jq '.stats.unexpected // 0' $RESULT_JSON)
+
           curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
             -H "Content-Type: application/json" \
             -d '{
               "runId": "'"${{ inputs.run_id }}"'",
               "status": "SUCCESS",
+              "testSummary": "'"$PASSED passed, $FAILED failed"'",
               "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             }'
 
@@ -103,5 +109,6 @@ jobs:
             -d '{
               "runId": "'"${{ inputs.run_id }}"'",
               "status": "FAILED",
+              "testSummary": "One or more tests failed",
               "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             }'
