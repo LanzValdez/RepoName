@@ -6,22 +6,14 @@ import fetch from 'node-fetch';
 // =============================
 // Config
 // =============================
-const BASE_URL = "https://aiqa.supportninja.com";
-const TEST_EMAIL = 'ninjaai.qa@supportninja.com';
-const S3_ENDPOINT = 'https://1qmqknkyd0.execute-api.ap-southeast-1.amazonaws.com/dev/tos3';
+const BASE_URL = 'https://aiqa.supportninja.com';
+const S3_ENDPOINT =
+  'https://1qmqknkyd0.execute-api.ap-southeast-1.amazonaws.com/dev/tos3';
 
 // Screenshots folder
 const SCREENSHOT_DIR = path.join('test-results', 'screenshots', 'prod');
-if (!fs.existsSync(SCREENSHOT_DIR)) fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
-
-// =============================
-// Get Credentials from API
-// =============================
-async function getCredentials(email) {
-  const url = `https://n292shfujb.execute-api.ap-southeast-1.amazonaws.com/sandbox/get-credentials?email=${encodeURIComponent(email)}`;
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`Failed to fetch credentials: ${resp.statusText}`);
-  return await resp.json();
+if (!fs.existsSync(SCREENSHOT_DIR)) {
+  fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 }
 
 // =============================
@@ -36,6 +28,7 @@ async function takeScreenshot(page, filename) {
 
 async function uploadScreenshot(filePath) {
   if (!fs.existsSync(filePath)) return;
+
   const contentBase64 = fs.readFileSync(filePath, { encoding: 'base64' });
   const filename = path.basename(filePath);
 
@@ -43,8 +36,12 @@ async function uploadScreenshot(filePath) {
     const resp = await fetch(S3_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ runId: 'prod', screenshots: [{ filename, contentBase64 }] })
+      body: JSON.stringify({
+        runId: 'prod',
+        screenshots: [{ filename, contentBase64 }],
+      }),
     });
+
     const data = await resp.json();
     console.log(`☁️ Uploaded ${filename}:`, data);
   } catch (err) {
@@ -55,87 +52,71 @@ async function uploadScreenshot(filePath) {
 // =============================
 // Test
 // =============================
-test('prod homepage login flow', async ({ browser }) => {
-  const context = await browser.newContext({ headless: true });
-  const page = await context.newPage();
+test('prod homepage login flow (google auth via storageState)', async ({
+  browser,
+}) => {
+  // ✅ Use pre-authenticated Google session
+  const context = await browser.newContext({
+    storageState: 'google-auth.json',
+  });
 
+  const page = await context.newPage();
   const screenshots = [];
 
   try {
-    console.log('🚀 Starting production homepage + login test');
+    console.log('🚀 Starting production homepage test');
 
     // Go to prod URL
     await page.goto(BASE_URL);
     console.log('🌐 Page loaded:', await page.url());
     await expect(page).toHaveTitle(/Ninja AI QA/);
 
-    // Landing page screenshot
     screenshots.push(await takeScreenshot(page, 'landing-page.png'));
 
-    // Google login
-    console.log('🔑 Performing Google login...');
-    await page.waitForTimeout(2000); // wait for iframe
+    // Google login (session already exists)
+    console.log('🔑 Clicking Google Sign-In (pre-authenticated)');
+    await page.waitForTimeout(2000);
 
-    const iframe = page.frames().find(f => f.url().includes('accounts.google.com'));
+    const iframe = page
+      .frames()
+      .find((f) => f.url().includes('accounts.google.com'));
+
     const googleBtn = iframe
       ? iframe.locator('div[role="button"]')
-      : page.frameLocator('iframe[src*="accounts.google.com/gsi/button"]').locator('div[role="button"]');
+      : page
+          .frameLocator('iframe[src*="accounts.google.com"]')
+          .locator('div[role="button"]');
 
     await googleBtn.waitFor({ state: 'visible', timeout: 20000 });
-    await page.waitForTimeout(1000);
     await googleBtn.click();
-    console.log('✅ Clicked Google Sign-In button');
-    screenshots.push(await takeScreenshot(page, 'popup-clicked-google-btn.png'));
 
-    const [popup] = await Promise.all([context.waitForEvent('page'), page.waitForTimeout(1000)]);
-    await popup.waitForLoadState('domcontentloaded');
-    screenshots.push(await takeScreenshot(popup, 'popup-loaded.png'));
+    screenshots.push(await takeScreenshot(page, 'clicked-google-btn.png'));
 
-    // Fetch password dynamically
-    const creds = await getCredentials(TEST_EMAIL);
-    const TEST_PASSWORD = creds.password;
-
-    // Fill email
-    await popup.fill('input[type="email"]', TEST_EMAIL);
-    screenshots.push(await takeScreenshot(popup, 'popup-email-filled.png'));
-    await popup.click('#identifierNext');
-    screenshots.push(await takeScreenshot(popup, 'popup-clicked-next-email.png'));
-    await popup.waitForTimeout(2000);
-
-    // Fill password
-    await popup.fill('input[type="password"]', TEST_PASSWORD);
-    screenshots.push(await takeScreenshot(popup, 'popup-password-filled.png'));
-    await popup.click('#passwordNext');
-    screenshots.push(await takeScreenshot(popup, 'popup-clicked-next-password.png'));
-    console.log('🔑 Filled Google credentials');
-
-    await page.waitForTimeout(8000); // wait for redirect to dashboard
-
-    // Handle "Continue" popup if exists
+    // Handle optional "Continue" popup
     const continueBtn = page.locator('button:has-text("Continue")');
-    if ((await continueBtn.count()) > 0) {
+    if (await continueBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await continueBtn.click();
       console.log('✅ Clicked "Continue" popup');
-      screenshots.push(await takeScreenshot(page, 'continue-popup-clicked.png'));
-      await page.waitForTimeout(1000);
+      screenshots.push(
+        await takeScreenshot(page, 'continue-popup-clicked.png')
+      );
     }
 
     // Wait for dashboard
     console.log('⏳ Waiting for dashboard...');
-    await page.waitForSelector('div:has-text("Account & Agent Details")', { timeout: 20000 });
-    await page.waitForTimeout(2000);
+    await page.waitForSelector(
+      'div:has-text("Account & Agent Details")',
+      { timeout: 20000 }
+    );
 
-    // Dashboard screenshot
     screenshots.push(await takeScreenshot(page, 'dashboard.png'));
 
     console.log('✅ Production test passed!');
   } catch (err) {
     console.log('❌ Test failed:', err.message);
-    const failScreenshot = await takeScreenshot(page, 'failure.png');
-    screenshots.push(failScreenshot);
+    screenshots.push(await takeScreenshot(page, 'failure.png'));
     throw err;
   } finally {
-    // Upload all screenshots to S3
     for (const file of screenshots) {
       await uploadScreenshot(file);
     }
