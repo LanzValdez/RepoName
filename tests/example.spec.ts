@@ -1,124 +1,111 @@
-name: NinjaAI QA - CT launch
+import { test, expect } from '@playwright/test';
+import fs from 'fs';
+import path from 'path';
+import fetch from 'node-fetch';
 
-on:
-  workflow_dispatch:
-    inputs:
-      run_id:
-        description: "Unique run ID from backend"
-        required: true
-      test_branch:
-        description: "Branch to run tests against"
-        required: true
-      path:
-        description: "Test path to run"
-        required: false
-        default: "default-path"
+// =============================
+// Config
+// =============================
+const BASE_URL = 'https://aiqa.supportninja.com';
+const S3_ENDPOINT =
+  'https://1qmqknkyd0.execute-api.ap-southeast-1.amazonaws.com/dev/tos3';
 
-jobs:
-  ninjaai-tests:
-    runs-on: ubuntu-latest
+const RUN_ID = process.env.RUN_ID || 'local-run';
 
-    steps:
-      # 1️⃣ Checkout code
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ inputs.test_branch }}
+// Screenshots folder
+const SCREENSHOT_DIR = path.join('test-results', 'screenshots', RUN_ID);
+if (!fs.existsSync(SCREENSHOT_DIR)) {
+  fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+}
 
-      # 2️⃣ Setup Node.js
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20
+// =============================
+// Helpers
+// =============================
+async function takeScreenshot(page, filename: string) {
+  const filePath = path.join(SCREENSHOT_DIR, filename);
+  await page.screenshot({ path: filePath });
+  console.log(`📸 Screenshot saved: ${filePath}`);
+  return filePath;
+}
 
-      # 3️⃣ Login to AWS CodeArtifact (optional for private packages)
-      - name: Login to AWS CodeArtifact
-        run: |
-          aws codeartifact login \
-            --tool npm \
-            --domain sni-react-components \
-            --domain-owner 345594593778 \
-            --repository sni-react-components-prod \
-            --region ap-southeast-1
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-          AWS_DEFAULT_REGION: ap-southeast-1
+async function uploadScreenshot(filePath: string) {
+  if (!fs.existsSync(filePath)) return;
 
-      # 4️⃣ Install dependencies
-      - name: Install dependencies
-        run: npm install
+  const contentBase64 = fs.readFileSync(filePath, { encoding: 'base64' });
+  const filename = path.basename(filePath);
 
-      # 5️⃣ Install Playwright browsers
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+  try {
+    const resp = await fetch(S3_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        runId: RUN_ID,
+        screenshots: [{ filename, contentBase64 }],
+      }),
+    });
 
-      # 6️⃣ Restore Google auth state
-      - name: Restore Google auth state
-        run: |
-          echo "$GOOGLE_AUTH_STATE" | base64 --decode > google-auth.json
-        env:
-          GOOGLE_AUTH_STATE: ${{ secrets.GOOGLE_AUTH_STATE }}
+    const data = await resp.json();
+    console.log(`☁️ Uploaded ${filename}:`, data);
+  } catch (err) {
+    console.log(`⚠️ Failed to upload ${filename}:`, err.message);
+  }
+}
 
-      # 7️⃣ Mark test IN PROGRESS
-      - name: Mark test IN PROGRESS
-        run: |
-          curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
-            -H "Content-Type: application/json" \
-            -d '{
-              "runId": "'"${{ inputs.run_id }}"'",
-              "status": "IN_PROGRESS"
-            }'
+// =============================
+// Test
+// =============================
+test('prod homepage login flow (google auth via storageState)', async ({ browser }) => {
+  // Use pre-authenticated Google session
+  const context = await browser.newContext({
+    storageState: 'google-auth.json',
+  });
 
-      # 8️⃣ Run Playwright tests with JSON report
-      - name: Run NinjaAI QA tests
-        id: playwright
-        run: |
-          mkdir -p test-results/screenshots/${{ inputs.run_id }}
-          export RUN_ID=${{ inputs.run_id }}
+  const page = await context.newPage();
+  const screenshots: string[] = [];
 
-          # Run Playwright test, output screenshots and JSON report
-          npx playwright test tests/example.spec.ts \
-            --output test-results/screenshots/${RUN_ID} \
-            --timeout 60000 \
-            --reporter=json,test-results/result.json
+  try {
+    console.log('🚀 Starting production homepage test');
 
-      # 9️⃣ Upload screenshots as artifact
-      - name: Upload screenshots as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: screenshots-${{ inputs.run_id }}
-          path: test-results/screenshots/${{ inputs.run_id }}
+    // Go to prod URL
+    await page.goto(BASE_URL);
+    await expect(page).toHaveTitle(/Ninja AI QA/);
 
-      # 🔟 Send SUCCESS result
-      - name: Send SUCCESS result
-        if: success()
-        run: |
-          RESULT_JSON="test-results/result.json"
+    screenshots.push(await takeScreenshot(page, 'landing-page.png'));
 
-          # Use jq to extract passed/failed counts
-          PASSED=$(jq '.stats.expected // 0' $RESULT_JSON)
-          FAILED=$(jq '.stats.unexpected // 0' $RESULT_JSON)
+    // Google login (session already exists)
+    console.log('🔑 Clicking Google Sign-In (pre-authenticated)');
+    await page.waitForTimeout(2000);
 
-          curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
-            -H "Content-Type: application/json" \
-            -d '{
-              "runId": "'"${{ inputs.run_id }}"'",
-              "status": "SUCCESS",
-              "testSummary": "'"$PASSED passed, $FAILED failed"'",
-              "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            }'
+    const iframe = page.frames().find((f) => f.url().includes('accounts.google.com'));
+    const googleBtn = iframe
+      ? iframe.locator('div[role="button"]')
+      : page.frameLocator('iframe[src*="accounts.google.com"]').locator('div[role="button"]');
 
-      # 🔴 11️⃣ Send FAILED result
-      - name: Send FAILED result
-        if: failure()
-        run: |
-          curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
-            -H "Content-Type: application/json" \
-            -d '{
-              "runId": "'"${{ inputs.run_id }}"'",
-              "status": "FAILED",
-              "testSummary": "One or more tests failed",
-              "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            }'
+    await googleBtn.waitFor({ state: 'visible', timeout: 20000 });
+    await googleBtn.click();
+    screenshots.push(await takeScreenshot(page, 'clicked-google-btn.png'));
+
+    // Optional "Continue" popup
+    const continueBtn = page.locator('button:has-text("Continue")');
+    if (await continueBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await continueBtn.click();
+      screenshots.push(await takeScreenshot(page, 'continue-popup-clicked.png'));
+    }
+
+    // Wait for dashboard
+    await page.waitForSelector('div:has-text("Account & Agent Details")', { timeout: 20000 });
+    screenshots.push(await takeScreenshot(page, 'dashboard.png'));
+
+    console.log('✅ Production test passed!');
+  } catch (err) {
+    console.log('❌ Test failed:', err.message);
+    screenshots.push(await takeScreenshot(page, 'failure.png'));
+    throw err;
+  } finally {
+    // Upload all screenshots to S3
+    for (const file of screenshots) {
+      await uploadScreenshot(file);
+    }
+    await context.close();
+  }
+});
