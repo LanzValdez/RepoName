@@ -27,14 +27,14 @@ async function getCredentials(email: string) {
 // =============================
 // Helpers
 // =============================
-async function takeScreenshot(page, filename: string) {
+async function takeScreenshot(page, filename) {
   const filePath = path.join(SCREENSHOT_DIR, filename);
   await page.screenshot({ path: filePath });
   console.log(`📸 Screenshot saved: ${filePath}`);
   return filePath;
 }
 
-async function uploadScreenshot(filePath: string) {
+async function uploadScreenshot(filePath) {
   if (!fs.existsSync(filePath)) return;
   const contentBase64 = fs.readFileSync(filePath, { encoding: 'base64' });
   const filename = path.basename(filePath);
@@ -59,7 +59,7 @@ test('prod homepage login flow', async ({ browser }) => {
   const context = await browser.newContext({ headless: true });
   const page = await context.newPage();
 
-  const screenshots: string[] = [];
+  const screenshots = [];
 
   try {
     console.log('🚀 Starting production homepage + login test');
@@ -133,3 +133,4 @@ test('prod homepage login flow', async ({ browser }) => {
     await context.close();
   }
 });
+
