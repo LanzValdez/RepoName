@@ -10,8 +10,11 @@ const BASE_URL = 'https://aiqa.supportninja.com';
 const S3_ENDPOINT =
   'https://1qmqknkyd0.execute-api.ap-southeast-1.amazonaws.com/dev/tos3';
 
-// Screenshots folder
-const SCREENSHOT_DIR = path.join('test-results', 'screenshots', 'prod');
+// Get RUN_ID from environment (set in workflow)
+const RUN_ID = process.env.RUN_ID || 'prod';
+
+// Screenshots folder per run
+const SCREENSHOT_DIR = path.join('test-results', 'screenshots', RUN_ID);
 if (!fs.existsSync(SCREENSHOT_DIR)) {
   fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 }
@@ -37,7 +40,7 @@ async function uploadScreenshot(filePath) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        runId: 'prod',
+        runId: RUN_ID,
         screenshots: [{ filename, contentBase64 }],
       }),
     });
@@ -77,9 +80,9 @@ test('prod homepage login flow (google auth via storageState)', async ({
     console.log('🔑 Clicking Google Sign-In (pre-authenticated)');
     await page.waitForTimeout(2000);
 
-    const iframe = page
-      .frames()
-      .find((f) => f.url().includes('accounts.google.com'));
+    const iframe = page.frames().find((f) =>
+      f.url().includes('accounts.google.com')
+    );
 
     const googleBtn = iframe
       ? iframe.locator('div[role="button"]')
@@ -104,10 +107,9 @@ test('prod homepage login flow (google auth via storageState)', async ({
 
     // Wait for dashboard
     console.log('⏳ Waiting for dashboard...');
-    await page.waitForSelector(
-      'div:has-text("Account & Agent Details")',
-      { timeout: 20000 }
-    );
+    await page.waitForSelector('div:has-text("Account & Agent Details")', {
+      timeout: 20000,
+    });
 
     screenshots.push(await takeScreenshot(page, 'dashboard.png'));
 
