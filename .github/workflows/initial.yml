@@ -19,9 +19,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout code (branch triggered by frontend)
+      # 1️⃣ Checkout code (frontend-specified branch)
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.test_branch }}
 
       # 2️⃣ Setup Node.js
       - name: Setup Node.js
@@ -29,15 +31,30 @@ jobs:
         with:
           node-version: 20
 
-      # 3️⃣ Install dependencies
+      # 3️⃣ Login to AWS CodeArtifact (if private npm packages)
+      - name: Login to AWS CodeArtifact
+        run: |
+          aws codeartifact login \
+            --tool npm \
+            --domain sni-react-components \
+            --domain-owner 345594593778 \
+            --repository sni-react-components-prod \
+            --region ap-southeast-1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_DEFAULT_REGION: ap-southeast-1
+
+      # 4️⃣ Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # 4️⃣ Install Playwright browsers
+      # 5️⃣ Install Playwright browsers
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      # 5️⃣ Mark test IN PROGRESS
+      # 6️⃣ Mark test IN PROGRESS
       - name: Mark test IN PROGRESS
         run: |
           curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
@@ -47,36 +64,20 @@ jobs:
               "status": "IN_PROGRESS"
             }'
 
-      # 6️⃣ Run Playwright tests
-      - name: Run NinjaAI QA test
+      # 7️⃣ Run Playwright tests
+      - name: Run NinjaAI QA tests
         id: playwright
         run: |
-          npx playwright test tests/example.spec.ts --output test-results/screenshots --reporter=json > result.json
+          npx playwright test tests/example.spec.ts \
+            --output test-results/screenshots \
+            --reporter=json > result.json
 
-      # 7️⃣ Upload screenshots to S3 Lambda
-      - name: Upload screenshots to S3
-        if: always()
-        run: |
-          echo "📤 Uploading screenshots to S3 for runId: ${{ inputs.run_id }}"
-          RUN_ID="${{ inputs.run_id }}"
-          ENDPOINT="https://1qmqknkyd0.execute-api.ap-southeast-1.amazonaws.com/dev/tos3"
-
-          # Loop over screenshots
-          for file in test-results/screenshots/**/*; do
-            if [[ -f "$file" ]]; then
-              FILE_NAME=$(basename "$file")
-              BASE64_CONTENT=$(base64 "$file" | tr -d '\n')
-              curl -X POST "$ENDPOINT" \
-                -H "Content-Type: application/json" \
-                -d '{
-                  "runId": "'"$RUN_ID"'",
-                  "fileName": "'"$FILE_NAME"'",
-                  "folder": "'"$RUN_ID"'",
-                  "content": "'"$BASE64_CONTENT"'"
-                }'
-            fi
-          done
-
+      # 8️⃣ Upload screenshots as GitHub artifact (v4)
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-screenshots-${{ inputs.run_id }}
+          path: test-results/screenshots/
 
       # 9️⃣ Send SUCCESS result
       - name: Send SUCCESS result
@@ -84,7 +85,6 @@ jobs:
         run: |
           PASSED=$(jq '.stats.expected' result.json)
           FAILED=$(jq '.stats.unexpected' result.json)
-
           curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
             -H "Content-Type: application/json" \
             -d '{
@@ -94,7 +94,7 @@ jobs:
               "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             }'
 
-      # 🔴 Send FAILED result
+      # 🔴 10️⃣ Send FAILED result
       - name: Send FAILED result
         if: failure()
         run: |
