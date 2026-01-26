@@ -19,9 +19,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout code (frontend-specified branch)
+      # 1️⃣ Checkout code (branch triggered by frontend)
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           ref: ${{ inputs.test_branch }}
 
@@ -31,28 +31,17 @@ jobs:
         with:
           node-version: 20
 
-      # 3️⃣ Login to AWS CodeArtifact (if private npm packages)
-      - name: Login to AWS CodeArtifact
-        run: |
-          aws codeartifact login \
-            --tool npm \
-            --domain sni-react-components \
-            --domain-owner 345594593778 \
-            --repository sni-react-components-prod \
-            --region ap-southeast-1
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-          AWS_DEFAULT_REGION: ap-southeast-1
-
-      # 4️⃣ Install dependencies
+      # 3️⃣ Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # 5️⃣ Install Playwright browsers
+      # 4️⃣ Install Playwright browsers
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
+
+      # 5️⃣ Prepare screenshot folder
+      - name: Prepare screenshot folder
+        run: mkdir -p test-results/screenshots/${{ inputs.run_id }}
 
       # 6️⃣ Mark test IN PROGRESS
       - name: Mark test IN PROGRESS
@@ -65,19 +54,22 @@ jobs:
             }'
 
       # 7️⃣ Run Playwright tests
-      - name: Run NinjaAI QA tests
+      - name: Run NinjaAI QA test
         id: playwright
         run: |
+          # Use the run_id as environment variable so tests can name screenshots accordingly
+          export RUN_ID=${{ inputs.run_id }}
+
           npx playwright test tests/example.spec.ts \
-            --output test-results/screenshots \
+            --output test-results/screenshots/${{ inputs.run_id }} \
             --reporter=json > result.json
 
-      # 8️⃣ Upload screenshots as GitHub artifact (v4)
+      # 8️⃣ Upload screenshots as GitHub artifact
       - name: Upload screenshots
         uses: actions/upload-artifact@v4
         with:
           name: playwright-screenshots-${{ inputs.run_id }}
-          path: test-results/screenshots/
+          path: test-results/screenshots/${{ inputs.run_id }}/
 
       # 9️⃣ Send SUCCESS result
       - name: Send SUCCESS result
@@ -85,6 +77,7 @@ jobs:
         run: |
           PASSED=$(jq '.stats.expected' result.json)
           FAILED=$(jq '.stats.unexpected' result.json)
+
           curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
             -H "Content-Type: application/json" \
             -d '{
