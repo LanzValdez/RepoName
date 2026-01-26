@@ -33,7 +33,6 @@ jobs:
 
       # 3️⃣ Login to AWS CodeArtifact (optional)
       - name: Login to AWS CodeArtifact
-        if: ${{ secrets.AWS_ACCESS_KEY_ID && secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           aws codeartifact login \
             --tool npm \
