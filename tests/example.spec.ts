@@ -20,10 +20,20 @@ const TEST_EMAIL = 'ninjaai.qa@supportninja.com';
 const IS_CI = process.env.CI === 'true'; // GitHub Actions sets this automatically
 const RUN_ID = process.env.RUN_ID || 'local'; // from workflow env
 
-// Ensure screenshot folder exists
+// Screenshot folder
 const SCREENSHOT_DIR = path.join('test-results', 'screenshots', RUN_ID);
 if (!fs.existsSync(SCREENSHOT_DIR)) fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
+// Helper
+async function takeScreenshot(page, filename) {
+  const filePath = path.join(SCREENSHOT_DIR, filename);
+  await page.screenshot({ path: filePath });
+  console.log(`📸 Screenshot saved: ${filePath}`);
+}
+
+// =============================
+// Test
+// =============================
 test('homepage loads and login', async ({ browser }) => {
   console.log('🚀 Starting homepage + login test');
 
@@ -37,13 +47,12 @@ test('homepage loads and login', async ({ browser }) => {
   console.log('📝 Page title is:', title);
   await expect(page).toHaveTitle(/Ninja AI QA/);
 
+  // Landing page screenshot (before login)
+  await page.waitForTimeout(1000);
+  await takeScreenshot(page, IS_CI ? 'landing-page-ci.png' : 'landing-page.png');
+
   if (!IS_CI) {
     console.log('🔑 Performing local Google login...');
-    await page.waitForTimeout(1000);
-
-    // Screenshot BEFORE clicking Google Sign-In
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'landing-page.png') });
-    console.log('📸 Screenshot of landing page taken');
 
     const iframe = page.frames().find(f => f.url().includes('accounts.google.com'));
     const googleBtn = iframe
@@ -55,6 +64,7 @@ test('homepage loads and login', async ({ browser }) => {
     await googleBtn.click();
     console.log('✅ Clicked Google Sign-In button');
 
+    // Wait for popup
     const [popup] = await Promise.all([
       context.waitForEvent('page'),
       page.waitForTimeout(1000)
@@ -65,29 +75,27 @@ test('homepage loads and login', async ({ browser }) => {
     const creds = await getCredentials(TEST_EMAIL);
     const TEST_PASSWORD = creds.password;
 
+    // Fill email
     await popup.fill('input[type="email"]', TEST_EMAIL);
     await popup.click('#identifierNext');
     await popup.waitForTimeout(2000);
 
+    // Fill password
     await popup.fill('input[type="password"]', TEST_PASSWORD);
     await popup.click('#passwordNext');
     console.log(`🔑 Filled Google credentials for ${TEST_EMAIL}`);
 
+    // Wait for redirect / dashboard
     await page.waitForTimeout(8000);
-
-    console.log('⏳ Waiting for dashboard to load...');
     await page.waitForSelector('div:has-text("Account & Agent Details")', { timeout: 15000 });
     await page.waitForTimeout(5000);
     console.log('✅ Dashboard fully loaded');
 
     // Dashboard screenshot
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'dashboard.png') });
-    console.log('📸 Screenshot of dashboard taken');
-
+    await takeScreenshot(page, 'dashboard.png');
   } else {
     console.log('ℹ️ Skipping interactive login in CI. Only testing homepage load.');
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'landing-page-ci.png') });
-    console.log('📸 Screenshot of landing page taken in CI');
+    // Optional: add more CI screenshots here if you want to capture other pages
   }
 
   await context.close();
