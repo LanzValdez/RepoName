@@ -17,7 +17,7 @@ if (!fs.existsSync(SCREENSHOT_DIR)) fs.mkdirSync(SCREENSHOT_DIR, { recursive: tr
 // =============================
 // Get Credentials
 // =============================
-async function getCredentials(email: string) {
+async function getCredentials(email) {
   const url = `https://n292shfujb.execute-api.ap-southeast-1.amazonaws.com/sandbox/get-credentials?email=${encodeURIComponent(email)}`;
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`Failed to fetch credentials: ${resp.statusText}`);
@@ -122,3 +122,4 @@ test('prod homepage login flow', async () => {
     await browser.close();
   }
 });
+
