@@ -39,10 +39,6 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      # 5️⃣ Prepare screenshot folder
-      - name: Prepare screenshot folder
-        run: mkdir -p test-results/screenshots/${{ inputs.run_id }}
-
       # 6️⃣ Mark test IN PROGRESS
       - name: Mark test IN PROGRESS
         run: |
