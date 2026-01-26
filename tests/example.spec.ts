@@ -85,20 +85,28 @@ test('prod homepage login flow', async ({ browser }) => {
     await page.waitForTimeout(1000);
     await googleBtn.click();
     console.log('✅ Clicked Google Sign-In button');
+    screenshots.push(await takeScreenshot(page, 'popup-clicked-google-btn.png'));
 
     const [popup] = await Promise.all([context.waitForEvent('page'), page.waitForTimeout(1000)]);
     await popup.waitForLoadState('domcontentloaded');
+    screenshots.push(await takeScreenshot(popup, 'popup-loaded.png'));
 
     // Fetch password dynamically
     const creds = await getCredentials(TEST_EMAIL);
     const TEST_PASSWORD = creds.password;
 
+    // Fill email
     await popup.fill('input[type="email"]', TEST_EMAIL);
+    screenshots.push(await takeScreenshot(popup, 'popup-email-filled.png'));
     await popup.click('#identifierNext');
+    screenshots.push(await takeScreenshot(popup, 'popup-clicked-next-email.png'));
     await popup.waitForTimeout(2000);
 
+    // Fill password
     await popup.fill('input[type="password"]', TEST_PASSWORD);
+    screenshots.push(await takeScreenshot(popup, 'popup-password-filled.png'));
     await popup.click('#passwordNext');
+    screenshots.push(await takeScreenshot(popup, 'popup-clicked-next-password.png'));
     console.log('🔑 Filled Google credentials');
 
     await page.waitForTimeout(8000); // wait for redirect to dashboard
@@ -108,6 +116,7 @@ test('prod homepage login flow', async ({ browser }) => {
     if ((await continueBtn.count()) > 0) {
       await continueBtn.click();
       console.log('✅ Clicked "Continue" popup');
+      screenshots.push(await takeScreenshot(page, 'continue-popup-clicked.png'));
       await page.waitForTimeout(1000);
     }
 
