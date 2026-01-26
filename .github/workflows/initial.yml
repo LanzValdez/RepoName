@@ -77,43 +77,35 @@ jobs:
             --output test-results/screenshots/${{ inputs.run_id }} \
             --reporter=json > result.json
 
-     # 7️⃣ Upload screenshots via API Gateway
       - name: Upload screenshots via API
         run: |
+          set -e
+      
           RUN_ID=${{ inputs.run_id }}
-          SCREENSHOT_DIR=test-results/screenshots/${RUN_ID}
-          
-          # Create a JSON array of screenshots
-          SCREENSHOT_JSON=$(jq -n '[]')
-          
-          for file in $SCREENSHOT_DIR/*.png; do
-            # Encode each file to base64
+          SCREENSHOT_DIR="test-results/screenshots/${RUN_ID}"
+      
+          # Check if directory exists
+          if [ ! -d "$SCREENSHOT_DIR" ]; then
+            echo "No screenshots found in $SCREENSHOT_DIR. Skipping upload."
+            exit 0
+          fi
+      
+          SCREENSHOT_JSON="[]"
+      
+          # Loop over PNGs
+          for file in "$SCREENSHOT_DIR"/*.png; do
+            [ -e "$file" ] || continue  # skip if no file matches
             CONTENT=$(base64 "$file" | tr -d '\n')
             FILENAME=$(basename "$file")
             SCREENSHOT_JSON=$(echo "$SCREENSHOT_JSON" | jq --arg fname "$FILENAME" --arg content "$CONTENT" '. += [{"filename": $fname, "contentBase64": $content}]')
           done
       
           # POST to API Gateway
+          echo "Uploading screenshots to API..."
           curl -X POST https://1qmqknkyd0.execute-api.ap-southeast-1.amazonaws.com/dev/tos3 \
             -H "Content-Type: application/json" \
-            -d "{\"runId\":\"$RUN_ID\", \"screenshots\": $SCREENSHOT_JSON}"
-      
-      
-            # 9️⃣ Send SUCCESS result
-            - name: Send SUCCESS result
-              if: success()
-              run: |
-                PASSED=$(jq '.stats.expected' result.json)
-                FAILED=$(jq '.stats.unexpected' result.json)
-      
-                curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
-                  -H "Content-Type: application/json" \
-                  -d '{
-                    "runId": "'"${{ inputs.run_id }}"'",
-                    "status": "SUCCESS",
-                    "testSummary": "'"$PASSED passed, $FAILED failed"'",
-                    "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                  }'
+            -d "{\"runId\":\"$RUN_ID\",\"screenshots\":$SCREENSHOT_JSON}"
+
 
       # 🔴 10️⃣ Send FAILED result
       - name: Send FAILED result
