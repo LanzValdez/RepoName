@@ -77,12 +77,6 @@ jobs:
             fi
           done
 
-      # 8️⃣ Optional: Upload GitHub artifact
-      - name: Upload screenshots as GitHub artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: playwright-screenshots
-          path: test-results/screenshots/
 
       # 9️⃣ Send SUCCESS result
       - name: Send SUCCESS result
