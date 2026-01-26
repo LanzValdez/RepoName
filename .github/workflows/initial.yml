@@ -77,7 +77,7 @@ jobs:
 
       # 8️⃣ Upload screenshots as GitHub artifact (optional for debugging)
       - name: Upload screenshots as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: screenshots-${{ inputs.run_id }}
           path: test-results/screenshots/${{ inputs.run_id }}
