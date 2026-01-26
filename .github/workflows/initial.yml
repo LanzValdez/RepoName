@@ -31,7 +31,7 @@ jobs:
         with:
           node-version: 20
 
-      # 3️⃣ Login to AWS CodeArtifact (optional for private packages)
+      # 3️⃣ Login to AWS CodeArtifact (optional)
       - name: Login to AWS CodeArtifact
         run: |
           aws codeartifact login \
@@ -76,24 +76,57 @@ jobs:
         id: playwright
         run: |
           mkdir -p test-results/screenshots/${{ inputs.run_id }}
+          mkdir -p test-results/${{ inputs.run_id }}
           export RUN_ID=${{ inputs.run_id }}
+
           npx playwright test tests/example.spec.ts \
             --output test-results/screenshots/${RUN_ID} \
-            --reporter=json,test-results/.last-run.json \
+            --reporter=json,test-results/${RUN_ID}/result.json \
             --timeout 60000
 
-      # 9️⃣ Upload screenshots as GitHub artifact (for debugging)
+      # 9️⃣ Upload screenshots as GitHub artifact
       - name: Upload screenshots as artifact
         uses: actions/upload-artifact@v4
         with:
           name: screenshots-${{ inputs.run_id }}
           path: test-results/screenshots/${{ inputs.run_id }}
 
+      # 🔹 Upload screenshots to S3
+      - name: Upload screenshots to S3
+        run: |
+          node -e "
+          const fs = require('fs');
+          const path = require('path');
+          const fetch = require('node-fetch');
+
+          const S3_ENDPOINT = process.env.S3_ENDPOINT;
+          const SCREENSHOT_DIR = path.join('test-results', 'screenshots', process.env.RUN_ID);
+
+          if (!fs.existsSync(SCREENSHOT_DIR)) process.exit(0);
+
+          const files = fs.readdirSync(SCREENSHOT_DIR);
+          for (const file of files) {
+            const filePath = path.join(SCREENSHOT_DIR, file);
+            const contentBase64 = fs.readFileSync(filePath, { encoding: 'base64' });
+            fetch(S3_ENDPOINT, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ runId: process.env.RUN_ID, screenshots: [{ filename: file, contentBase64 }] })
+            })
+            .then(res => res.json())
+            .then(data => console.log('☁️ Uploaded', file, data))
+            .catch(err => console.log('⚠️ Failed to upload', file, err.message));
+          }
+          "
+        env:
+          RUN_ID: ${{ inputs.run_id }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+
       # 🔟 Send SUCCESS result
       - name: Send SUCCESS result
         if: success()
         run: |
-          RESULT_JSON="test-results/result.json"
+          RESULT_JSON="test-results/${{ inputs.run_id }}/result.json"
           PASSED=$(jq '.stats.expected // 0' $RESULT_JSON)
           FAILED=$(jq '.stats.unexpected // 0' $RESULT_JSON)
 
@@ -106,7 +139,7 @@ jobs:
               "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             }'
 
-      # 🔴 11️⃣ Send FAILED result
+      # 🔴 Send FAILED result
       - name: Send FAILED result
         if: failure()
         run: |
