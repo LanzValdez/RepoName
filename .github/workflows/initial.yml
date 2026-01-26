@@ -79,7 +79,7 @@ jobs:
           export RUN_ID=${{ inputs.run_id }}
           npx playwright test tests/example.spec.ts \
             --output test-results/screenshots/${RUN_ID} \
-            --reporter=json,test-results/result.json \
+            --reporter=json,test-results/.last-run.json \
             --timeout 60000
 
       # 9️⃣ Upload screenshots as GitHub artifact (for debugging)
