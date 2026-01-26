@@ -76,22 +76,6 @@ test('prod homepage login flow (google auth via storageState)', async ({ browser
     console.log('🔑 Clicking Google Sign-In (pre-authenticated)');
     await page.waitForTimeout(2000);
 
-    const iframe = page.frames().find((f) => f.url().includes('accounts.google.com'));
-    const googleBtn = iframe
-      ? iframe.locator('div[role="button"]')
-      : page.frameLocator('iframe[src*="accounts.google.com"]').locator('div[role="button"]');
-
-    await googleBtn.waitFor({ state: 'visible', timeout: 20000 });
-    await googleBtn.click();
-    screenshots.push(await takeScreenshot(page, 'clicked-google-btn.png'));
-
-    // Optional "Continue" popup
-    const continueBtn = page.locator('button:has-text("Continue")');
-    if (await continueBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await continueBtn.click();
-      screenshots.push(await takeScreenshot(page, 'continue-popup-clicked.png'));
-    }
-
     // Wait for dashboard
     await page.waitForSelector('div:has-text("Account & Agent Details")', { timeout: 20000 });
     screenshots.push(await takeScreenshot(page, 'dashboard.png'));
@@ -109,3 +93,4 @@ test('prod homepage login flow (google auth via storageState)', async ({ browser
     await context.close();
   }
 });
+
