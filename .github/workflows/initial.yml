@@ -46,7 +46,7 @@ jobs:
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
           AWS_DEFAULT_REGION: ap-southeast-1
 
-      # 4️⃣ Install deps
+      # 4️⃣ Install dependencies
       - name: Install dependencies
         run: npm install
 
@@ -57,7 +57,7 @@ jobs:
       # 6️⃣ 🔵 Tell backend test STARTED
       - name: Mark test IN PROGRESS
         run: |
-          curl -X POST ${{ secrets.BACKEND_API_URL }}/result \
+          curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
             -H "Content-Type: application/json" \
             -d '{
               "runId": "'"${{ inputs.run_id }}"'",
@@ -79,7 +79,7 @@ jobs:
           PASSED=$(jq '.stats.expected' result.json)
           FAILED=$(jq '.stats.unexpected' result.json)
 
-          curl -X POST ${{ secrets.BACKEND_API_URL }}/result \
+          curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
             -H "Content-Type: application/json" \
             -d '{
               "runId": "'"${{ inputs.run_id }}"'",
@@ -92,7 +92,7 @@ jobs:
       - name: Send FAILED result
         if: failure()
         run: |
-          curl -X POST ${{ secrets.BACKEND_API_URL }}/result \
+          curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
             -H "Content-Type: application/json" \
             -d '{
               "runId": "'"${{ inputs.run_id }}"'",
