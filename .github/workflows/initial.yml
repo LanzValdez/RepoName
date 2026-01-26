@@ -31,11 +31,27 @@ jobs:
         with:
           node-version: 20
 
-      # 3️⃣ Install dependencies
+      # 3️⃣ Login to AWS CodeArtifact (if using private packages)
+      - name: Login to AWS CodeArtifact
+        if: secrets.AWS_ACCESS_KEY_ID != ''
+        run: |
+          aws codeartifact login \
+            --tool npm \
+            --domain sni-react-components \
+            --domain-owner 345594593778 \
+            --repository sni-react-components-prod \
+            --region ap-southeast-1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_DEFAULT_REGION: ap-southeast-1
+
+      # 4️⃣ Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # 4️⃣ Install Playwright browsers
+      # 5️⃣ Install Playwright browsers
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
@@ -53,7 +69,9 @@ jobs:
       - name: Run NinjaAI QA test
         id: playwright
         run: |
-          # Use the run_id as environment variable so tests can name screenshots accordingly
+          mkdir -p test-results/screenshots/${{ inputs.run_id }}
+
+          # Set RUN_ID environment variable for tests
           export RUN_ID=${{ inputs.run_id }}
 
           npx playwright test tests/example.spec.ts \
