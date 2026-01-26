@@ -1,4 +1,4 @@
-import { test, expect, chromium } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
@@ -15,7 +15,7 @@ const SCREENSHOT_DIR = path.join('test-results', 'screenshots', 'prod');
 if (!fs.existsSync(SCREENSHOT_DIR)) fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
 // =============================
-// Get Credentials
+// Get Credentials from API
 // =============================
 async function getCredentials(email) {
   const url = `https://n292shfujb.execute-api.ap-southeast-1.amazonaws.com/sandbox/get-credentials?email=${encodeURIComponent(email)}`;
@@ -45,81 +45,91 @@ async function uploadScreenshot(filePath) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ runId: 'prod', screenshots: [{ filename, contentBase64 }] })
     });
-    console.log(`☁️ Uploaded ${filename}`, await resp.json());
+    const data = await resp.json();
+    console.log(`☁️ Uploaded ${filename}:`, data);
   } catch (err) {
-    console.log(`⚠️ Upload failed for ${filename}:`, err.message);
+    console.log(`⚠️ Failed to upload ${filename}:`, err.message);
   }
 }
 
 // =============================
 // Test
 // =============================
-test('prod homepage login flow', async () => {
-  console.log('🧼 Launching completely fresh browser...');
-
-  const browser = await chromium.launch({ headless: true });
-
-  const context = await browser.newContext({
-    viewport: { width: 1280, height: 800 },
-    locale: 'en-US',
-    permissions: [],
-    serviceWorkers: 'block',   // 🚫 prevents session reuse
-    storageState: undefined    // 🧼 ensures no cookies/session
-  });
-
+test('prod homepage login flow', async ({ browser }) => {
+  const context = await browser.newContext({ headless: true });
   const page = await context.newPage();
+
   const screenshots = [];
 
   try {
-    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
+    console.log('🚀 Starting production homepage + login test');
+
+    // Go to prod URL
+    await page.goto(BASE_URL);
+    console.log('🌐 Page loaded:', await page.url());
     await expect(page).toHaveTitle(/Ninja AI QA/);
+
+    // Landing page screenshot
     screenshots.push(await takeScreenshot(page, 'landing-page.png'));
 
-    console.log('🔑 Waiting for Google Sign-In button...');
+    // Google login
+    console.log('🔑 Performing Google login...');
+    await page.waitForTimeout(2000); // wait for iframe
 
-    const googleFrame = page.frameLocator('iframe[src*="accounts.google.com"]');
-    const googleBtn = googleFrame.locator('div[role="button"]');
+    const iframe = page.frames().find(f => f.url().includes('accounts.google.com'));
+    const googleBtn = iframe
+      ? iframe.locator('div[role="button"]')
+      : page.frameLocator('iframe[src*="accounts.google.com/gsi/button"]').locator('div[role="button"]');
 
     await googleBtn.waitFor({ state: 'visible', timeout: 20000 });
+    await page.waitForTimeout(1000);
+    await googleBtn.click();
+    console.log('✅ Clicked Google Sign-In button');
 
-    console.log('🖱 Clicking Google Sign-In...');
-    const [popup] = await Promise.all([
-      context.waitForEvent('page'),  // 💥 listen BEFORE click
-      googleBtn.click()
-    ]);
-
+    const [popup] = await Promise.all([context.waitForEvent('page'), page.waitForTimeout(1000)]);
     await popup.waitForLoadState('domcontentloaded');
 
+    // Fetch password dynamically
     const creds = await getCredentials(TEST_EMAIL);
+    const TEST_PASSWORD = creds.password;
+
     await popup.fill('input[type="email"]', TEST_EMAIL);
     await popup.click('#identifierNext');
+    await popup.waitForTimeout(2000);
 
-    await popup.fill('input[type="password"]', creds.password);
+    await popup.fill('input[type="password"]', TEST_PASSWORD);
     await popup.click('#passwordNext');
+    console.log('🔑 Filled Google credentials');
 
-    console.log('🔄 Waiting for redirect back to app...');
-    await page.waitForLoadState('networkidle', { timeout: 30000 });
+    await page.waitForTimeout(8000); // wait for redirect to dashboard
 
+    // Handle "Continue" popup if exists
     const continueBtn = page.locator('button:has-text("Continue")');
-    if (await continueBtn.isVisible().catch(() => false)) {
+    if ((await continueBtn.count()) > 0) {
       await continueBtn.click();
-      console.log('➡️ Clicked Continue popup');
+      console.log('✅ Clicked "Continue" popup');
+      await page.waitForTimeout(1000);
     }
 
-    await page.waitForSelector('div:has-text("Account & Agent Details")', { timeout: 30000 });
+    // Wait for dashboard
+    console.log('⏳ Waiting for dashboard...');
+    await page.waitForSelector('div:has-text("Account & Agent Details")', { timeout: 20000 });
+    await page.waitForTimeout(2000);
+
+    // Dashboard screenshot
     screenshots.push(await takeScreenshot(page, 'dashboard.png'));
 
-    console.log('✅ Production login test PASSED');
+    console.log('✅ Production test passed!');
   } catch (err) {
     console.log('❌ Test failed:', err.message);
-    screenshots.push(await takeScreenshot(page, 'failure.png'));
+    const failScreenshot = await takeScreenshot(page, 'failure.png');
+    screenshots.push(failScreenshot);
     throw err;
   } finally {
+    // Upload all screenshots to S3
     for (const file of screenshots) {
       await uploadScreenshot(file);
     }
     await context.close();
-    await browser.close();
   }
 });
-
