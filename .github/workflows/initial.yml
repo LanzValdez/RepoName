@@ -70,19 +70,19 @@ jobs:
               "runId": "'"${{ inputs.run_id }}"'",
               "status": "IN_PROGRESS"
             }'
-
-      # 8️⃣ Run Playwright tests
+     # 8️⃣ Run Playwright tests
       - name: Run NinjaAI QA tests
         id: playwright
         run: |
-          mkdir -p test-results/screenshots/${{ inputs.run_id }}
-          mkdir -p test-results/${{ inputs.run_id }}
-          export RUN_ID=${{ inputs.run_id }}
+            mkdir -p test-results/screenshots/${{ inputs.run_id }}
+            mkdir -p test-results/${{ inputs.run_id }}
+            export RUN_ID=${{ inputs.run_id }}
+        
+            npx playwright test tests/example.spec.js \
+              --output test-results/screenshots/${RUN_ID} \
+              --reporter=json=test-results/${RUN_ID}/result.json \
+              --timeout 60000
 
-          npx playwright test tests/example.spec.ts \
-            --output test-results/screenshots/${RUN_ID} \
-            --reporter=json,test-results/${RUN_ID}/result.json \
-            --timeout 60000
 
       # 9️⃣ Upload screenshots as GitHub artifact
       - name: Upload screenshots as artifact
