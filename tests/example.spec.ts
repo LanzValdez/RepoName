@@ -74,7 +74,7 @@ test('prod homepage login flow', async ({ browser }) => {
 
     // Google login
     console.log('🔑 Performing Google login...');
-    await page.waitForTimeout(2000); // wait for iframe to appear
+    await page.waitForTimeout(2000); // wait for iframe
 
     const iframe = page.frames().find(f => f.url().includes('accounts.google.com'));
     const googleBtn = iframe
@@ -89,6 +89,7 @@ test('prod homepage login flow', async ({ browser }) => {
     const [popup] = await Promise.all([context.waitForEvent('page'), page.waitForTimeout(1000)]);
     await popup.waitForLoadState('domcontentloaded');
 
+    // Fetch password dynamically
     const creds = await getCredentials(TEST_EMAIL);
     const TEST_PASSWORD = creds.password;
 
