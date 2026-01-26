@@ -31,7 +31,7 @@ jobs:
         with:
           node-version: 20
 
-      # 3️⃣ Login to AWS CodeArtifact (optional)
+      # 3️⃣ Login to AWS CodeArtifact (optional for private packages)
       - name: Login to AWS CodeArtifact
         run: |
           aws codeartifact login \
@@ -70,55 +70,27 @@ jobs:
         run: |
           mkdir -p test-results/screenshots/${{ inputs.run_id }}
           export RUN_ID=${{ inputs.run_id }}
-
-          # Run Playwright without redirecting stdout, it handles reporter correctly
+          
+          # Run Playwright test without redirecting stdout
           npx playwright test tests/example.spec.ts \
-            --output test-results/screenshots/${RUN_ID} \
+            --output test-results/screenshots/${RUN_ID}
 
-      # 8️⃣ Upload all screenshots to S3 via API
-      - name: Upload screenshots via API
-        run: |
-          set -e
-          RUN_ID=${{ inputs.run_id }}
-          SCREENSHOT_DIR="test-results/screenshots/${RUN_ID}"
-
-          if [ ! -d "$SCREENSHOT_DIR" ]; then
-            echo "No screenshots found in $SCREENSHOT_DIR. Skipping upload."
-            exit 0
-          fi
-
-          SCREENSHOT_JSON="[]"
-
-          for file in "$SCREENSHOT_DIR"/*.png; do
-            [ -e "$file" ] || continue
-            CONTENT=$(base64 "$file" | tr -d '\n')
-            FILENAME=$(basename "$file")
-            SCREENSHOT_JSON=$(echo "$SCREENSHOT_JSON" | jq --arg fname "$FILENAME" --arg content "$CONTENT" '. += [{"filename": $fname, "contentBase64": $content}]')
-          done
-
-          if [ "$(echo "$SCREENSHOT_JSON" | jq 'length')" -gt 0 ]; then
-            echo "Uploading $(echo "$SCREENSHOT_JSON" | jq 'length') screenshots to API..."
-            curl -X POST https://1qmqknkyd0.execute-api.ap-southeast-1.amazonaws.com/dev/tos3 \
-              -H "Content-Type: application/json" \
-              -d "{\"runId\":\"$RUN_ID\",\"screenshots\":$SCREENSHOT_JSON}"
-          else
-            echo "No screenshots to upload."
-          fi
+      # 8️⃣ Upload screenshots as GitHub artifact (optional for debugging)
+      - name: Upload screenshots as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: screenshots-${{ inputs.run_id }}
+          path: test-results/screenshots/${{ inputs.run_id }}
 
       # 9️⃣ Send SUCCESS result
       - name: Send SUCCESS result
         if: success()
         run: |
-          RESULT_JSON="test-results/result.json"
-          PASSED=$(jq '.stats.expected // 0' $RESULT_JSON)
-          FAILED=$(jq '.stats.unexpected // 0' $RESULT_JSON)
-
           curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
             -H "Content-Type: application/json" \
             -d '{
               "runId": "'"${{ inputs.run_id }}"'",
               "status": "SUCCESS",
-              "testSummary": "'"$PASSED passed, $FAILED failed"'",
               "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             }'
 
@@ -131,6 +103,5 @@ jobs:
             -d '{
               "runId": "'"${{ inputs.run_id }}"'",
               "status": "FAILED",
-              "testSummary": "One or more tests failed",
               "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             }'
