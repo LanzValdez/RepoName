@@ -19,42 +19,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout MAIN branch (test framework lives here)
-      - name: Checkout main branch
+      # 1️⃣ Checkout code (branch triggered by frontend)
+      - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          ref: main
 
-      # 2️⃣ Setup Node
+      # 2️⃣ Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 20
 
-      # 3️⃣ CodeArtifact login
-      - name: Login to AWS CodeArtifact
-        run: |
-          aws codeartifact login \
-            --tool npm \
-            --domain sni-react-components \
-            --domain-owner 345594593778 \
-            --repository sni-react-components-prod \
-            --region ap-southeast-1
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-          AWS_DEFAULT_REGION: ap-southeast-1
-
-      # 4️⃣ Install dependencies
+      # 3️⃣ Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # 5️⃣ Install Playwright
+      # 4️⃣ Install Playwright browsers
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      # 6️⃣ 🔵 Tell backend test STARTED
+      # 5️⃣ Mark test IN PROGRESS
       - name: Mark test IN PROGRESS
         run: |
           curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
@@ -64,15 +47,20 @@ jobs:
               "status": "IN_PROGRESS"
             }'
 
-      # 7️⃣ Run Playwright against target branch
+      # 6️⃣ Run Playwright tests
       - name: Run NinjaAI QA test
         id: playwright
         run: |
-          git fetch origin ${{ inputs.test_branch }}
-          git checkout ${{ inputs.test_branch }}
-          npx playwright test tests/example.spec.ts --reporter=json > result.json
+          npx playwright test tests/example.spec.ts --output test-results/screenshots --reporter=json > result.json
 
-      # 8️⃣ 🟢 If tests pass
+      # 7️⃣ Upload screenshots as GitHub artifact
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-screenshots
+          path: test-results/screenshots/
+
+      # 8️⃣ Send SUCCESS result
       - name: Send SUCCESS result
         if: success()
         run: |
@@ -88,7 +76,7 @@ jobs:
               "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             }'
 
-      # 9️⃣ 🔴 If tests fail
+      # 9️⃣ Send FAILED result
       - name: Send FAILED result
         if: failure()
         run: |
