@@ -40,97 +40,109 @@ async function takeScreenshot(page, filename: string) {
 // Helper: Upload to S3 endpoint
 // =============================
 async function uploadScreenshot(filePath: string) {
+  if (!fs.existsSync(filePath)) return;
   const contentBase64 = fs.readFileSync(filePath, { encoding: 'base64' });
   const filename = path.basename(filePath);
 
-  const resp = await fetch(S3_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ runId: RUN_ID, screenshots: [{ filename, contentBase64 }] })
-  });
-
-  const data = await resp.json();
-  console.log(`☁️ Uploaded ${filename}:`, data);
+  try {
+    const resp = await fetch(S3_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ runId: RUN_ID, screenshots: [{ filename, contentBase64 }] })
+    });
+    const data = await resp.json();
+    console.log(`☁️ Uploaded ${filename}:`, data);
+  } catch (err) {
+    console.log(`⚠️ Failed to upload ${filename}:`, err.message);
+  }
 }
 
 // =============================
 // Test
 // =============================
 test('homepage loads and login', async ({ browser }) => {
-  console.log('🚀 Starting homepage + login test');
-
   const context = await browser.newContext({ headless: IS_CI ? true : false });
   const page = await context.newPage();
 
-  await page.goto(BASE_URL);
-  console.log('🌐 Page loaded:', await page.url());
-  await expect(page).toHaveTitle(/Ninja AI QA/);
+  // Keep track of all screenshots to upload later
+  const screenshots: string[] = [];
 
-  // 1️⃣ Landing page screenshot
-  const landingFile = IS_CI ? 'landing-page-ci.png' : 'landing-page.png';
-  const landingPath = await takeScreenshot(page, landingFile);
-
-  if (!IS_CI) {
-    console.log('🔑 Performing local Google login...');
-    await page.waitForTimeout(1000);
-
-    const iframe = page.frames().find(f => f.url().includes('accounts.google.com'));
-    const googleBtn = iframe
-      ? iframe.locator('div[role="button"]')
-      : page.frameLocator('iframe[src*="accounts.google.com/gsi/button"]').locator('div[role="button"]');
-
-    await googleBtn.waitFor({ state: 'visible', timeout: 15000 });
-    await page.waitForTimeout(1000);
-    await googleBtn.click();
-    console.log('✅ Clicked Google Sign-In button');
-
-    const [popup] = await Promise.all([
-      context.waitForEvent('page'),
-      page.waitForTimeout(1000)
-    ]);
-    await popup.waitForLoadState('domcontentloaded');
-
-    const creds = await getCredentials(TEST_EMAIL);
-    const TEST_PASSWORD = creds.password;
-
-    await popup.fill('input[type="email"]', TEST_EMAIL);
-    await popup.click('#identifierNext');
-    await popup.waitForTimeout(2000);
-
-    await popup.fill('input[type="password"]', TEST_PASSWORD);
-    await popup.click('#passwordNext');
-    console.log('🔑 Filled Google credentials');
-
-    await page.waitForTimeout(8000);
-  } else {
-    console.log('ℹ️ Skipping interactive login in CI.');
-  }
-
-  // 2️⃣ Handle "Continue" popup if it exists
   try {
-    const continueBtn = page.locator('button:has-text("Continue")');
-    if (await continueBtn.count() > 0) {
-      await continueBtn.click();
-      console.log('✅ Detected and clicked "Continue" popup');
+    console.log('🚀 Starting homepage + login test');
+
+    await page.goto(BASE_URL);
+    console.log('🌐 Page loaded:', await page.url());
+    await expect(page).toHaveTitle(/Ninja AI QA/);
+
+    // Landing page screenshot
+    const landingFile = IS_CI ? 'landing-page-ci.png' : 'landing-page.png';
+    screenshots.push(await takeScreenshot(page, landingFile));
+
+    if (!IS_CI) {
+      console.log('🔑 Performing local Google login...');
       await page.waitForTimeout(1000);
+
+      const iframe = page.frames().find(f => f.url().includes('accounts.google.com'));
+      const googleBtn = iframe
+        ? iframe.locator('div[role="button"]')
+        : page.frameLocator('iframe[src*="accounts.google.com/gsi/button"]').locator('div[role="button"]');
+
+      await googleBtn.waitFor({ state: 'visible', timeout: 15000 });
+      await page.waitForTimeout(1000);
+      await googleBtn.click();
+      console.log('✅ Clicked Google Sign-In button');
+
+      const [popup] = await Promise.all([context.waitForEvent('page'), page.waitForTimeout(1000)]);
+      await popup.waitForLoadState('domcontentloaded');
+
+      const creds = await getCredentials(TEST_EMAIL);
+      const TEST_PASSWORD = creds.password;
+
+      await popup.fill('input[type="email"]', TEST_EMAIL);
+      await popup.click('#identifierNext');
+      await popup.waitForTimeout(2000);
+      await popup.fill('input[type="password"]', TEST_PASSWORD);
+      await popup.click('#passwordNext');
+      console.log('🔑 Filled Google credentials');
+
+      await page.waitForTimeout(8000);
+    } else {
+      console.log('ℹ️ Skipping interactive login in CI.');
     }
+
+    // Handle "Continue" popup
+    try {
+      const continueBtn = page.locator('button:has-text("Continue")');
+      if (await continueBtn.count() > 0) {
+        await continueBtn.click();
+        console.log('✅ Clicked "Continue" popup');
+        await page.waitForTimeout(1000);
+      }
+    } catch {}
+
+    // Wait for dashboard
+    console.log('⏳ Waiting for dashboard to load...');
+    await page.waitForSelector('div:has-text("Account & Agent Details")', { timeout: 20000 });
+    await page.waitForTimeout(2000);
+
+    // Dashboard screenshot
+    screenshots.push(await takeScreenshot(page, 'dashboard.png'));
+
+    console.log('✅ Test passed!');
   } catch (err) {
-    console.log('ℹ️ No "Continue" popup found, proceeding...');
+    console.log('❌ Test failed:', err.message);
+
+    // Take a screenshot of the failure
+    const failScreenshot = await takeScreenshot(page, 'failure.png');
+    screenshots.push(failScreenshot);
+
+    throw err; // let Playwright mark test as failed
+  } finally {
+    // Upload all screenshots to S3
+    for (const file of screenshots) {
+      await uploadScreenshot(file);
+    }
+
+    await context.close();
   }
-
-  // 3️⃣ Wait for dashboard
-  console.log('⏳ Waiting for dashboard to load...');
-  await page.waitForSelector('div:has-text("Account & Agent Details")', { timeout: 20000 });
-  await page.waitForTimeout(2000);
-
-  // Dashboard screenshot
-  const dashboardPath = await takeScreenshot(page, 'dashboard.png');
-
-  // 4️⃣ Upload all screenshots
-  for (const file of [landingPath, dashboardPath]) {
-    await uploadScreenshot(file);
-  }
-
-  console.log('✅ All screenshots captured and uploaded!');
-  await context.close();
 });
