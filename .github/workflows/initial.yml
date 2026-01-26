@@ -54,7 +54,14 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      # 6️⃣ Mark test IN PROGRESS
+      # 6️⃣ Restore Google auth state from secret
+      - name: Restore Google auth state
+        run: |
+          echo "$GOOGLE_AUTH_STATE" | base64 --decode > google-auth.json
+        env:
+          GOOGLE_AUTH_STATE: ${{ secrets.GOOGLE_AUTH_STATE }}
+
+      # 7️⃣ Mark test IN PROGRESS
       - name: Mark test IN PROGRESS
         run: |
           curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
@@ -64,26 +71,24 @@ jobs:
               "status": "IN_PROGRESS"
             }'
 
-      # 7️⃣ Run Playwright tests
+      # 8️⃣ Run Playwright tests
       - name: Run NinjaAI QA tests
         id: playwright
         run: |
           mkdir -p test-results/screenshots/${{ inputs.run_id }}
           export RUN_ID=${{ inputs.run_id }}
-          
-          # Run Playwright test without redirecting stdout
           npx playwright test tests/example.spec.ts \
             --output test-results/screenshots/${RUN_ID} \
             --timeout 60000
 
-      # 8️⃣ Upload screenshots as GitHub artifact (for debugging)
+      # 9️⃣ Upload screenshots as GitHub artifact (for debugging)
       - name: Upload screenshots as artifact
         uses: actions/upload-artifact@v4
         with:
           name: screenshots-${{ inputs.run_id }}
           path: test-results/screenshots/${{ inputs.run_id }}
 
-      # 9️⃣ Send SUCCESS result
+      # 🔟 Send SUCCESS result
       - name: Send SUCCESS result
         if: success()
         run: |
@@ -100,7 +105,7 @@ jobs:
               "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             }'
 
-      # 🔴 10️⃣ Send FAILED result
+      # 🔴 11️⃣ Send FAILED result
       - name: Send FAILED result
         if: failure()
         run: |
