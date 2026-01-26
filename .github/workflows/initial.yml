@@ -74,7 +74,6 @@ jobs:
           # Run Playwright without redirecting stdout, it handles reporter correctly
           npx playwright test tests/example.spec.ts \
             --output test-results/screenshots/${RUN_ID} \
-            --reporter=json,test
 
       # 8️⃣ Upload all screenshots to S3 via API
       - name: Upload screenshots via API
