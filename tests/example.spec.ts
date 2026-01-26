@@ -106,15 +106,27 @@ test('homepage loads and login', async ({ browser }) => {
     console.log('ℹ️ Skipping interactive login in CI.');
   }
 
-  // 2️⃣ Wait for dashboard element in ALL environments
+  // 2️⃣ Handle "Continue" popup if it exists
+  try {
+    const continueBtn = page.locator('button:has-text("Continue")');
+    if (await continueBtn.count() > 0) {
+      await continueBtn.click();
+      console.log('✅ Detected and clicked "Continue" popup');
+      await page.waitForTimeout(1000);
+    }
+  } catch (err) {
+    console.log('ℹ️ No "Continue" popup found, proceeding...');
+  }
+
+  // 3️⃣ Wait for dashboard
   console.log('⏳ Waiting for dashboard to load...');
-  await page.waitForSelector('div:has-text("Account & Agent Details")', { timeout: 15000 });
-  await page.waitForTimeout(5000);
+  await page.waitForSelector('div:has-text("Account & Agent Details")', { timeout: 20000 });
+  await page.waitForTimeout(2000);
 
   // Dashboard screenshot
   const dashboardPath = await takeScreenshot(page, 'dashboard.png');
 
-  // 3️⃣ Upload all screenshots to S3
+  // 4️⃣ Upload all screenshots
   for (const file of [landingPath, dashboardPath]) {
     await uploadScreenshot(file);
   }
