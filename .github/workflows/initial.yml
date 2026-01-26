@@ -1,0 +1,102 @@
+name: NinjaAI QA - CT launch
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Unique run ID from backend"
+        required: true
+      test_branch:
+        description: "Branch to run tests against"
+        required: true
+      path:
+        description: "Test path to run"
+        required: false
+        default: "default-path"
+
+jobs:
+  ninjaai-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout MAIN branch (test framework lives here)
+      - name: Checkout main branch
+        uses: actions/checkout@v3
+        with:
+          ref: main
+
+      # 2️⃣ Setup Node
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      # 3️⃣ CodeArtifact login
+      - name: Login to AWS CodeArtifact
+        run: |
+          aws codeartifact login \
+            --tool npm \
+            --domain sni-react-components \
+            --domain-owner 345594593778 \
+            --repository sni-react-components-prod \
+            --region ap-southeast-1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_DEFAULT_REGION: ap-southeast-1
+
+      # 4️⃣ Install deps
+      - name: Install dependencies
+        run: npm install
+
+      # 5️⃣ Install Playwright
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      # 6️⃣ 🔵 Tell backend test STARTED
+      - name: Mark test IN PROGRESS
+        run: |
+          curl -X POST https://YOUR_API_URL/result \
+            -H "Content-Type: application/json" \
+            -d '{
+              "runId": "'"${{ inputs.run_id }}"'",
+              "status": "IN_PROGRESS"
+            }'
+
+      # 7️⃣ Run Playwright against target branch
+      - name: Run NinjaAI QA test
+        id: playwright
+        run: |
+          git fetch origin ${{ inputs.test_branch }}
+          git checkout ${{ inputs.test_branch }}
+          npx playwright test tests/example.spec.ts --reporter=json > result.json
+
+      # 8️⃣ 🟢 If tests pass
+      - name: Send SUCCESS result
+        if: success()
+        run: |
+          PASSED=$(jq '.stats.expected' result.json)
+          FAILED=$(jq '.stats.unexpected' result.json)
+
+          curl -X POST https://YOUR_API_URL/result \
+            -H "Content-Type: application/json" \
+            -d '{
+              "runId": "'"${{ inputs.run_id }}"'",
+              "status": "SUCCESS",
+              "testSummary": "'"$PASSED passed, $FAILED failed"'",
+              "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }'
+
+      # 9️⃣ 🔴 If tests fail
+      - name: Send FAILED result
+        if: failure()
+        run: |
+          curl -X POST https://YOUR_API_URL/result \
+            -H "Content-Type: application/json" \
+            -d '{
+              "runId": "'"${{ inputs.run_id }}"'",
+              "status": "FAILED",
+              "testSummary": "One or more tests failed",
+              "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }'
