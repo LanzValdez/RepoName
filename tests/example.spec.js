@@ -1,7 +1,7 @@
-import { test, expect } from '@playwright/test';
-import fs from 'fs';
-import path from 'path';
-import fetch from 'node-fetch';
+const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
+const fetch = require('node-fetch');
 
 // =============================
 // Config
@@ -21,14 +21,14 @@ if (!fs.existsSync(SCREENSHOT_DIR)) {
 // =============================
 // Helpers
 // =============================
-async function takeScreenshot(page, filename: string) {
+async function takeScreenshot(page, filename) {
   const filePath = path.join(SCREENSHOT_DIR, filename);
   await page.screenshot({ path: filePath });
   console.log(`📸 Screenshot saved: ${filePath}`);
   return filePath;
 }
 
-async function uploadScreenshot(filePath: string) {
+async function uploadScreenshot(filePath) {
   if (!fs.existsSync(filePath)) return;
 
   const contentBase64 = fs.readFileSync(filePath, { encoding: 'base64' });
@@ -55,13 +55,12 @@ async function uploadScreenshot(filePath: string) {
 // Test
 // =============================
 test('prod homepage login flow (google auth via storageState)', async ({ browser }) => {
-  // Use pre-authenticated Google session
   const context = await browser.newContext({
     storageState: 'google-auth.json',
   });
 
   const page = await context.newPage();
-  const screenshots: string[] = [];
+  const screenshots = [];
 
   try {
     console.log('🚀 Starting production homepage test');
@@ -86,11 +85,9 @@ test('prod homepage login flow (google auth via storageState)', async ({ browser
     screenshots.push(await takeScreenshot(page, 'failure.png'));
     throw err;
   } finally {
-    // Upload all screenshots to S3
     for (const file of screenshots) {
       await uploadScreenshot(file);
     }
     await context.close();
   }
 });
-
