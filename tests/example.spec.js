@@ -1,7 +1,14 @@
-const { test, expect } = require('@playwright/test');
-const fs = require('fs');
-const path = require('path');
-const fetch = require('node-fetch');
+import { test, expect } from '@playwright/test';
+import fs from 'fs';
+import path from 'path';
+import fetch from 'node-fetch';
+import { fileURLToPath } from 'url';
+
+// =============================
+// ESM __dirname fix
+// =============================
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // =============================
 // Config
@@ -13,7 +20,7 @@ const S3_ENDPOINT =
 const RUN_ID = process.env.RUN_ID || 'local-run';
 
 // Screenshots folder
-const SCREENSHOT_DIR = path.join('test-results', 'screenshots', RUN_ID);
+const SCREENSHOT_DIR = path.join(__dirname, 'test-results', 'screenshots', RUN_ID);
 if (!fs.existsSync(SCREENSHOT_DIR)) {
   fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 }
@@ -65,18 +72,17 @@ test('prod homepage login flow (google auth via storageState)', async ({ browser
   try {
     console.log('🚀 Starting production homepage test');
 
-    // Go to prod URL
     await page.goto(BASE_URL);
     await expect(page).toHaveTitle(/Ninja AI QA/);
 
     screenshots.push(await takeScreenshot(page, 'landing-page.png'));
 
-    // Google login (session already exists)
-    console.log('🔑 Clicking Google Sign-In (pre-authenticated)');
     await page.waitForTimeout(2000);
 
-    // Wait for dashboard
-    await page.waitForSelector('div:has-text("Account & Agent Details")', { timeout: 20000 });
+    await page.waitForSelector('div:has-text("Account & Agent Details")', {
+      timeout: 20000,
+    });
+
     screenshots.push(await takeScreenshot(page, 'dashboard.png'));
 
     console.log('✅ Production test passed!');
