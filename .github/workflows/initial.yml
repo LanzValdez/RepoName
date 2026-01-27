@@ -82,7 +82,6 @@ jobs:
 
           npx playwright test tests/example.spec.js \
             --output test-results/screenshots/${RUN_ID} \
-            --reporter=json=test-results/${RUN_ID}/result.json \
             --timeout 60000
 
       # 9️⃣ Upload screenshots as GitHub artifact
