@@ -71,7 +71,7 @@ jobs:
         env:
           GOOGLE_AUTH_STATE: ${{ secrets.GOOGLE_AUTH_STATE }}
 
-      # 8️⃣ Run Playwright tests
+      # 8️⃣ Run Playwright tests (capture exit code)
       - name: Run NinjaAI QA tests
         id: playwright
         run: |
@@ -80,11 +80,16 @@ jobs:
           mkdir -p test-results/screenshots/${RUN_ID}
           mkdir -p test-results/${RUN_ID}
 
+          set +e
           npx playwright test tests/example.spec.js \
             --output test-results/screenshots/${RUN_ID} \
             --reporter=json \
             --timeout 60000 \
             > test-results/${RUN_ID}/result.json
+          EXIT_CODE=$?
+          set -e
+
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
 
       # 9️⃣ Upload screenshots as GitHub artifact
       - name: Upload screenshots as artifact
@@ -129,7 +134,7 @@ jobs:
 
       # 🔟 Send SUCCESS result
       - name: Send SUCCESS result
-        if: success()
+        if: steps.playwright.outputs.exit_code == '0'
         run: |
           RESULT_JSON="test-results/${{ inputs.run_id }}/result.json"
 
@@ -147,7 +152,7 @@ jobs:
 
       # 🔴 Send FAILED result
       - name: Send FAILED result
-        if: failure()
+        if: steps.playwright.outputs.exit_code != '0'
         run: |
           curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
             -H "Content-Type: application/json" \
