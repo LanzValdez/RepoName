@@ -84,14 +84,7 @@ jobs:
             --output test-results/screenshots/${RUN_ID} \
             --timeout 60000
 
-      # 9️⃣ Upload screenshots as GitHub artifact
-      - name: Upload screenshots as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: screenshots-${{ inputs.run_id }}
-          path: test-results/screenshots/${{ inputs.run_id }}
-
-      # 🔹 Upload screenshots to S3 (Option A: dynamic import)
+      #  Upload screenshots to S3
       - name: Upload screenshots to S3
         run: |
           node -e "
@@ -128,17 +121,12 @@ jobs:
       - name: Send SUCCESS result
         if: success()
         run: |
-          RESULT_JSON="test-results/${{ inputs.run_id }}/result.json"
-
-          PASSED=$(jq '.stats.expected // 0' $RESULT_JSON)
-          FAILED=$(jq '.stats.unexpected // 0' $RESULT_JSON)
-
           curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
             -H "Content-Type: application/json" \
             -d '{
               "runId": "'"${{ inputs.run_id }}"'",
               "status": "SUCCESS",
-              "testSummary": "'"$PASSED passed, $FAILED failed"'",
+              "testSummary": "passed",
               "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             }'
 
