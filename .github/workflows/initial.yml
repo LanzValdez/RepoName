@@ -84,39 +84,6 @@ jobs:
             --output test-results/screenshots/${RUN_ID} \
             --timeout 60000
 
-      #  Upload screenshots to S3
-      - name: Upload screenshots to S3
-        run: |
-          node -e "
-          const fs = require('fs');
-          const path = require('path');
-
-          const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-
-          const S3_ENDPOINT = process.env.S3_ENDPOINT;
-          const SCREENSHOT_DIR = path.join('test-results', 'screenshots', process.env.RUN_ID);
-
-          if (!fs.existsSync(SCREENSHOT_DIR)) process.exit(0);
-
-          const files = fs.readdirSync(SCREENSHOT_DIR);
-          for (const file of files) {
-            const filePath = path.join(SCREENSHOT_DIR, file);
-            const contentBase64 = fs.readFileSync(filePath, { encoding: 'base64' });
-
-            fetch(S3_ENDPOINT, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ runId: process.env.RUN_ID, screenshots: [{ filename: file, contentBase64 }] })
-            })
-            .then(res => res.json())
-            .then(data => console.log('☁️ Uploaded', file, data))
-            .catch(err => console.log('⚠️ Failed to upload', file, err.message));
-          }
-          "
-        env:
-          RUN_ID: ${{ inputs.run_id }}
-          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
-
       # 🔟 Send SUCCESS result
       - name: Send SUCCESS result
         if: success()
