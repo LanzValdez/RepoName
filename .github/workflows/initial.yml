@@ -25,23 +25,13 @@ jobs:
         with:
           ref: ${{ inputs.test_branch }}
 
-      # 2️⃣ Mark test IN PROGRESS
-      - name: Mark test IN PROGRESS
-        run: |
-          curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
-            -H "Content-Type: application/json" \
-            -d '{
-              "runId": "'"${{ inputs.run_id }}"'",
-              "status": "IN_PROGRESS"
-            }'
-
-      # 3️⃣ Setup Node.js
+      # 2️⃣ Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 20
 
-      # 4️⃣ Login to AWS CodeArtifact
+      # 3️⃣ Login to AWS CodeArtifact (optional)
       - name: Login to AWS CodeArtifact
         run: |
           aws codeartifact login \
@@ -56,40 +46,44 @@ jobs:
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
           AWS_DEFAULT_REGION: ap-southeast-1
 
-      # 5️⃣ Install dependencies
+      # 4️⃣ Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # 6️⃣ Install Playwright browsers
+      # 5️⃣ Install Playwright browsers
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      # 7️⃣ Restore Google auth state
+      # 6️⃣ Restore Google auth state from secret
       - name: Restore Google auth state
         run: |
           echo "$GOOGLE_AUTH_STATE" | base64 --decode > google-auth.json
         env:
           GOOGLE_AUTH_STATE: ${{ secrets.GOOGLE_AUTH_STATE }}
 
-      # 8️⃣ Run Playwright tests (capture exit code)
+      # 7️⃣ Mark test IN PROGRESS
+      - name: Mark test IN PROGRESS
+        run: |
+          curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
+            -H "Content-Type: application/json" \
+            -d '{
+              "runId": "'"${{ inputs.run_id }}"'",
+              "status": "IN_PROGRESS"
+            }'
+
+      # 8️⃣ Run Playwright tests
       - name: Run NinjaAI QA tests
         id: playwright
         run: |
+          mkdir -p test-results/screenshots/${{ inputs.run_id }}
+          mkdir -p test-results/${{ inputs.run_id }}
+
           export RUN_ID=${{ inputs.run_id }}
 
-          mkdir -p test-results/screenshots/${RUN_ID}
-          mkdir -p test-results/${RUN_ID}
-
-          set +e
           npx playwright test tests/example.spec.js \
             --output test-results/screenshots/${RUN_ID} \
-            --reporter=json \
-            --timeout 60000 \
-            > test-results/${RUN_ID}/result.json
-          EXIT_CODE=$?
-          set -e
-
-          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+            --reporter=json=test-results/${RUN_ID}/result.json \
+            --timeout 60000
 
       # 9️⃣ Upload screenshots as GitHub artifact
       - name: Upload screenshots as artifact
@@ -104,6 +98,7 @@ jobs:
           node -e "
           const fs = require('fs');
           const path = require('path');
+          const fetch = require('node-fetch');
 
           const S3_ENDPOINT = process.env.S3_ENDPOINT;
           const SCREENSHOT_DIR = path.join('test-results', 'screenshots', process.env.RUN_ID);
@@ -134,7 +129,7 @@ jobs:
 
       # 🔟 Send SUCCESS result
       - name: Send SUCCESS result
-        if: steps.playwright.outputs.exit_code == '0'
+        if: success()
         run: |
           RESULT_JSON="test-results/${{ inputs.run_id }}/result.json"
 
@@ -152,7 +147,7 @@ jobs:
 
       # 🔴 Send FAILED result
       - name: Send FAILED result
-        if: steps.playwright.outputs.exit_code != '0'
+        if: failure()
         run: |
           curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
             -H "Content-Type: application/json" \
