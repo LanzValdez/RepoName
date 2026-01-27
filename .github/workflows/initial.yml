@@ -31,7 +31,7 @@ jobs:
         with:
           node-version: 20
 
-      # 3️⃣ Login to AWS CodeArtifact (optional)
+      # 3️⃣ Login to AWS CodeArtifact
       - name: Login to AWS CodeArtifact
         run: |
           aws codeartifact login \
@@ -54,7 +54,7 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      # 6️⃣ Restore Google auth state from secret
+      # 6️⃣ Restore Google auth state
       - name: Restore Google auth state
         run: |
           echo "$GOOGLE_AUTH_STATE" | base64 --decode > google-auth.json
@@ -75,13 +75,14 @@ jobs:
       - name: Run NinjaAI QA tests
         id: playwright
         run: |
-          mkdir -p test-results/screenshots/${{ inputs.run_id }}
-          mkdir -p test-results/${{ inputs.run_id }}
-
           export RUN_ID=${{ inputs.run_id }}
+
+          mkdir -p test-results/screenshots/${RUN_ID}
+          mkdir -p test-results/${RUN_ID}
 
           npx playwright test tests/example.spec.js \
             --output test-results/screenshots/${RUN_ID} \
+            --reporter=json=test-results/${RUN_ID}/result.json \
             --timeout 60000
 
       # 9️⃣ Upload screenshots as GitHub artifact
@@ -91,13 +92,14 @@ jobs:
           name: screenshots-${{ inputs.run_id }}
           path: test-results/screenshots/${{ inputs.run_id }}
 
-      # 🔹 Upload screenshots to S3
+      # 🔹 Upload screenshots to S3 (Option A: dynamic import)
       - name: Upload screenshots to S3
         run: |
           node -e "
           const fs = require('fs');
           const path = require('path');
-          const fetch = require('node-fetch');
+
+          const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
           const S3_ENDPOINT = process.env.S3_ENDPOINT;
           const SCREENSHOT_DIR = path.join('test-results', 'screenshots', process.env.RUN_ID);
@@ -112,14 +114,11 @@ jobs:
             fetch(S3_ENDPOINT, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                runId: process.env.RUN_ID,
-                screenshots: [{ filename: file, contentBase64 }]
-              })
+              body: JSON.stringify({ runId: process.env.RUN_ID, screenshots: [{ filename: file, contentBase64 }] })
             })
-              .then(res => res.json())
-              .then(data => console.log('☁️ Uploaded', file, data))
-              .catch(err => console.log('⚠️ Failed to upload', file, err.message));
+            .then(res => res.json())
+            .then(data => console.log('☁️ Uploaded', file, data))
+            .catch(err => console.log('⚠️ Failed to upload', file, err.message));
           }
           "
         env:
