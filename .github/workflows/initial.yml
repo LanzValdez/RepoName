@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: "Unique run ID from backend"
+        description: "Unique run ID from frontend"
         required: true
       test_branch:
         description: "Branch to run tests against"
@@ -16,6 +16,7 @@ on:
 
 jobs:
   ninjaai-tests:
+    name: NinjaAI Tests (${{ inputs.run_id }})
     runs-on: ubuntu-latest
 
     steps:
@@ -61,27 +62,30 @@ jobs:
         env:
           GOOGLE_AUTH_STATE: ${{ secrets.GOOGLE_AUTH_STATE }}
 
-      # 7️⃣ Mark test IN PROGRESS
+      # 7️⃣ Export RUN_ID once
+      - name: Export RUN_ID
+        run: echo "RUN_ID=${{ inputs.run_id }}" >> $GITHUB_ENV
+
+      # 8️⃣ Mark test IN PROGRESS
       - name: Mark test IN PROGRESS
         run: |
           curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
             -H "Content-Type: application/json" \
             -d '{
-              "runId": "'"${{ inputs.run_id }}"'",
+              "runId": "'"$RUN_ID"'",
               "status": "IN_PROGRESS"
             }'
 
-      # 8️⃣ Run Playwright tests
+      # 9️⃣ Run Playwright tests
       - name: Run NinjaAI QA tests
         id: playwright
+        continue-on-error: true
         run: |
-          export RUN_ID=${{ inputs.run_id }}
-
-          mkdir -p test-results/screenshots/${RUN_ID}
-          mkdir -p test-results/${RUN_ID}
+          mkdir -p test-results/screenshots/$RUN_ID
+          mkdir -p test-results/$RUN_ID
 
           npx playwright test tests/example.spec.js \
-            --output test-results/screenshots/${RUN_ID} \
+            --output test-results/screenshots/$RUN_ID \
             --timeout 60000
 
       # 🔟 Send SUCCESS result
@@ -91,7 +95,7 @@ jobs:
           curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
             -H "Content-Type: application/json" \
             -d '{
-              "runId": "'"${{ inputs.run_id }}"'",
+              "runId": "'"$RUN_ID"'",
               "status": "SUCCESS",
               "testSummary": "passed",
               "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
@@ -104,7 +108,7 @@ jobs:
           curl -X POST ${{ secrets.BACKEND_API_URL }}/update \
             -H "Content-Type: application/json" \
             -d '{
-              "runId": "'"${{ inputs.run_id }}"'",
+              "runId": "'"$RUN_ID"'",
               "status": "FAILED",
               "testSummary": "One or more tests failed",
               "logsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
